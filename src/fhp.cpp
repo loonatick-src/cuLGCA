@@ -66,6 +66,21 @@ generate_velocities()
 
 template <long unsigned int channel_count, typename word>
 auto
+number_of_particles(std::array<velocity2, channel_count>& velocities,
+        word n)
+{
+    uint32_t count = 0;
+    while (n)
+    {
+        n &= (n-1);
+        count++;
+    }
+    return count;
+}
+
+
+template <long unsigned int channel_count, typename word>
+auto
 calculate_momentum(std::array<velocity2, channel_count>& velocities,
         word state)
 {
@@ -115,11 +130,13 @@ int main()
     do 
     {
         auto momentum = calculate_momentum(velocities, state);
+        auto particle_count = number_of_particles(velocities, state);
         bool found = false;
         for (auto& eqclass : equivalence_classes)
         {
             auto it = eqclass.begin();
-            if (norm_diff(calculate_momentum(velocities, *it), momentum) < threshold)
+            if (particle_count == number_of_particles(velocities, *it)
+                    && norm_diff(calculate_momentum(velocities, *it), momentum) < threshold)
             {
                 found = true;
                 eqclass.push_back(state);
