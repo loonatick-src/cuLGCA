@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
-#include <dbg.h>
+// #include <dbg.h>
 #include <tuple>
 #include <bitset>
 #include <vector>
@@ -126,7 +126,14 @@ int main()
     auto velocities = generate_velocities<CC>();  
     clean_perturbations<CC>(velocities, threshold);
     std::vector< std::vector< u8 > > equivalence_classes;
+
+    // Cuda copy-able memory
+    uint8_t *h_eq_classes = (uint8_t*) malloc(64*sizeof(uint8_t));
+    uint8_t *h_state_to_eq = (uint8_t*) malloc(64*sizeof(uint8_t));
+    
     u8 state = 0;
+
+    // Populate equivalence class table
     do 
     {
         auto momentum = calculate_momentum(velocities, state);
@@ -152,6 +159,20 @@ int main()
         state++;
     } while (state != (1<<6));
     
+    // Convert vec < vec <> > to array and Populate state_to_eq_class table
+    int index = 0;
+    for (auto& eqcl : equivalence_classes)
+    {
+        auto start_id = index;
+        for (auto& state : eqcl)
+        {
+            h_eq_classes[index] = state;
+            h_state_to_eq[state] = start_id;
+            // Similarly store size of this eq class
+            index++;
+        }
+    }
+
     for (auto& eqcl : equivalence_classes)
     {
         for (auto& state : eqcl)
@@ -161,6 +182,19 @@ int main()
         }
         std::cout << std::endl;
     }
+
+    std::cout << std::endl; 
+    for(int i=0; i<64; i++) 
+    {
+        std::cout << (int)(h_eq_classes[i]) << "\t";
+    }
+    std::cout<<"\n";
     
+    for(int i=0; i<64; i++) 
+    {
+        std::cout << i << ":" << (int)(h_state_to_eq[i]) << "\t";
+    }
+    std::cout<<"\n";
+
     return 0;
 }
