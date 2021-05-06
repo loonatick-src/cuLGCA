@@ -1,122 +1,149 @@
-#include <dbg.h>
-#include <iostream>
-#include <cstdint>
-#include <utility>
-#include <vector>
+#include <cassert>
 #include <cmath>
+#include <iostream>
+#include <dbg.h>
+#include <tuple>
+#include <bitset>
+#include <vector>
 
 
-typedef struct 
-{
-    uint8_t state: 6;
-    uint8_t extra: 2;
-} fhpcell_t;
+typedef uint8_t u8;
+typedef std::tuple<double, double> velocity2;
 
-typedef std::pair<double, double> velocity_t;
 
 auto
-momentum(fhpcell_t s, std::vector<velocity_t> v)
+make_velocity(double vx, double vy)
 {
-    // _ _ _ _ _ _ _ _
-    velocity_t rv = std::make_pair(0.0l, 0.0l);
-    // unit mass
-    // (s & mask)>>i * v.f v.s
-    for (uint8_t i = 0; i < v.size(); i++)
+    return std::tuple<double, double> { vx, vy };
+}
+
+auto
+energy(velocity2 v)
+{
+    auto vx = std::get<0>(v);
+    auto vy = std::get<1>(v);
+    return vx*vx + vy*vy;
+}
+
+
+auto
+norm_diff(velocity2 v1, velocity2 v2)
+{
+    auto dvx = std::get<0>(v1) - std::get<0>(v2);
+    auto dvy = std::get<1>(v1) - std::get<1>(v2);
+    return sqrt(dvx*dvx + dvy*dvy);
+}
+
+
+auto
+rotate(velocity2 v, double radians)
+{
+    auto c = cos(radians);
+    auto s = sin(radians);
+    auto vx = std::get<0>(v);
+    auto vy = std::get<1>(v);
+
+    return make_velocity(c*vx - s*vy, s*vx + c*vy);
+}
+
+
+template <size_t n>
+auto
+generate_velocities()
+{
+    velocity2 v0 = make_velocity(1.0, 0.0);
+    double angle = 2.0 * M_PI/n;
+
+    std::array<velocity2, n> velocities;
+    velocities[0] = v0; 
+    for (int i = 1; i < n; i++)
     {
-        rv.first += v[i].first * ((s.state >> i) & 1);
-        rv.second += v[i].second * ((s.state >> i) & 1);
+        velocities[i] = rotate(velocities[i-1], angle);
     }
-    return rv;
+    return velocities;
 }
 
 
-inline
+template <long unsigned int channel_count, typename word>
 auto
-momentumCmp(velocity_t v1, velocity_t v2, double norm_threshold)
+calculate_momentum(std::array<velocity2, channel_count>& velocities,
+        word state)
 {
-    // L2 norm of difference of momenta
-    norm_threshold = fabs(norm_threshold);  // just in case
-    auto diff = sqrt((v1.first - v2.first) * (v1.first - v2.first) 
-            + (v1.second - v2.second) * (v1.second - v2.second));
-    return (diff < norm_threshold);
-}
-
-
-velocity_t
-rotate(velocity_t v, double angle)
-{
-    // assuming radians
-    velocity_t rv;
-    rv.first = cos(angle)*v.first
-               + sin(angle) * v.second;
-    rv.second = -sin(angle) * v.first
-               + cos(angle) * v.second;
-    return rv;
-}
-
-
-template<typename T>
-inline
-auto
-countSetBits(T value)
-{
-    size_t number_of_set_bits = 0;
-    while (value)
+    const word bit = 0x1;
+    velocity2 v = make_velocity(0.0, 0.0);
+    for (auto i = 0; i < channel_count; i++)
     {
-        value &= (value-1);
-        number_of_set_bits++;
+        const word temp = state & bit;
+        if (temp == 1)
+        {
+            const auto vt = velocities[i];
+            auto vx = std::get<0>(vt);
+            auto vy = std::get<1>(vt);
+            std::get<0>(v) += vx;
+            std::get<1>(v) += vy;
+        }
+        state >>= 1;
     }
-    return number_of_set_bits;
+    return v;
 }
 
 
-inline
+template<size_t n>
 auto
-particleCount(fhpcell_t node)
+clean_perturbations(std::array<velocity2, n>& velocities, double threshold)
 {
-    return countSetBits(node.state);
+    for (auto& v : velocities)
+    {
+        auto vx = std::get<0>(v);
+        auto vy = std::get<1>(v);
+        if (fabs(vx) < threshold)
+            vx = 0;
+        if (fabs(vy) < threshold)
+            vy = 0;
+        v = make_velocity(vx, vy);
+    }
 }
 
-inline
-auto
-clean(velocity_t& v, double threshold)
+int main()
 {
-    if (fabs(v.first) < threshold)
-        v.first = 0.0l;
+    const size_t CC = 6;
+    const double threshold = 1.0e-6;
+    auto velocities = generate_velocities<CC>();  
+    clean_perturbations<CC>(velocities, threshold);
+    std::vector< std::vector< u8 > > equivalence_classes;
+    u8 state = 0;
+    do 
+    {
+        auto momentum = calculate_momentum(velocities, state);
+        bool found = false;
+        for (auto& eqclass : equivalence_classes)
+        {
+            auto it = eqclass.begin();
+            if (norm_diff(calculate_momentum(velocities, *it), momentum) < threshold)
+            {
+                found = true;
+                eqclass.push_back(state);
+                break;
+            }
+        }
+        if (!found)
+        {
+            std::vector<u8> newclass;
+            newclass.push_back(state);
+            equivalence_classes.push_back(newclass);
+        }
+        state++;
+    } while (state != (1<<6));
     
-    if (fabs(v.second) < threshold)
-        v.second = 0.0l;
-}
-
-
-int main(int argc, char *argv[])
-{
-    std::vector<velocity_t> velocities;
-    velocity_t v0 = std::make_pair(1.0l, 0.0l);
-    for (int i = 0; i < 6; i++)
+    for (auto& eqcl : equivalence_classes)
     {
-        velocities.push_back(v0);
-        v0 = rotate(v0, M_PI/3.0l);
+        for (auto& state : eqcl)
+        {
+            std::bitset<8> x(state);
+            std::cout << x << ' ';
+        }
+        std::cout << std::endl;
     }
-
-    fhpcell_t x;
-    x.state = 0b110100;
-    x.extra = 0b00;
-    for (auto v: velocities)
-    {
-        std::cout << v.first << ' ' << v.second << '\n';
-    }
-    std::cout << std::endl;
-
-    velocity_t p = momentum(x, velocities);
-    std::cout << p.first << ' ' << p.second << '\n';
-
-    std::cerr << "Testing set bits counter" << std::endl;
-    std::cout << "0b100101: " << countSetBits(0b100101) << '\n';
-    std::cout << "0b0000: " << countSetBits(0b0000) << '\n';
-    std::cout << "0b1: " << countSetBits(0b01) << '\n';
-
-    std::cerr << "Testing particle counter" << std::endl;
-    std::cout << "x {0b110100, 0b01}: " << particleCount(x) << '\n';
+    
     return 0;
 }
