@@ -127,9 +127,11 @@ int main()
     clean_perturbations<CC>(velocities, threshold);
     std::vector< std::vector< u8 > > equivalence_classes;
 
+    const int array_length = 128;
+
     // Cuda copy-able memory
-    uint8_t *h_eq_classes = (uint8_t*) malloc(64*sizeof(uint8_t));
-    uint8_t *h_state_to_eq = (uint8_t*) malloc(64*sizeof(uint8_t));
+    uint8_t *h_eq_classes = (uint8_t*) malloc(array_length*sizeof(uint8_t));
+    uint8_t *h_state_to_eq = (uint8_t*) malloc(array_length*sizeof(uint8_t));
     
     u8 state = 0;
 
@@ -160,6 +162,7 @@ int main()
     } while (state != (1<<6));
     
     // Convert vec < vec <> > to array and Populate state_to_eq_class table
+    // for normal collision 
     int index = 0;
     for (auto& eqcl : equivalence_classes)
     {
@@ -173,6 +176,18 @@ int main()
         }
     }
 
+    int BIT_MASK_3 = 0b111, BIT_MASK_6 = 0b111000;
+
+    // Lookup table entries for bounce back collisions
+    // ASSUMPTION: 7th bit is set to 1 if bounce back happens in this point
+    for(int i=64; i<128; i++) 
+    {
+        uint8_t vel_vec = i - 64;
+        uint8_t bounced = (1<<6) | (((vel_vec&BIT_MASK_3)<<3)|((vel_vec&BIT_MASK_6)>>3));
+        h_eq_classes[i] = bounced;
+        h_state_to_eq[i] = i;
+    }
+
     for (auto& eqcl : equivalence_classes)
     {
         for (auto& state : eqcl)
@@ -184,13 +199,16 @@ int main()
     }
 
     std::cout << std::endl; 
-    for(int i=0; i<64; i++) 
+    for(int i=0; i<array_length; i++) 
     {
-        std::cout << (int)(h_eq_classes[i]) << "\t";
+        std::bitset<8> x(h_eq_classes[i]);
+        std::cout << x << ' ';
+        if (i==63)
+            std::cout<<"\n";
     }
-    std::cout<<"\n";
+    std::cout<<"\n\n";
     
-    for(int i=0; i<64; i++) 
+    for(int i=0; i<array_length; i++) 
     {
         std::cout << i << ":" << (int)(h_state_to_eq[i]) << "\t";
     }
