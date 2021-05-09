@@ -131,6 +131,7 @@ int main()
     // Cuda copy-able memory
     uint8_t *h_eq_classes = (uint8_t*) malloc(array_length*sizeof(uint8_t));
     uint8_t *h_state_to_eq = (uint8_t*) malloc(array_length*sizeof(uint8_t));
+    uint8_t *h_eq_class_size = (uint8_t*) malloc(array_length*sizeof(uint8_t));
     
     u8 state = 0;
 
@@ -166,11 +167,12 @@ int main()
     for (auto& eqcl : equivalence_classes)
     {
         auto start_id = index;
+        auto size = eqcl.size();
         for (auto& state : eqcl)
         {
             h_eq_classes[index] = state;
             h_state_to_eq[state] = start_id;
-            // Similarly store size of this eq class
+            h_eq_class_size[state] = size;
             index++;
         }
     }
@@ -185,6 +187,7 @@ int main()
         uint8_t bounced = (1<<6) | (((vel_vec&BIT_MASK_3)<<3)|((vel_vec&BIT_MASK_6)>>3));
         h_eq_classes[i] = bounced;
         h_state_to_eq[i] = i;
+        h_eq_class_size[i] = 1;
     }
 
     for (auto& eqcl : equivalence_classes)

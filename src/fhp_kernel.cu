@@ -1,4 +1,12 @@
 #include <tuple>
+#include <curand_kernel.h>
+
+// Constant memory lookup tables
+__constant__ uint8_t d_state_to_eq[128];
+__constant__ uint8_t d_eq_class_size[128];
+__constant__ uint8_t d_eq_classes[128];
+
+// TODO: Copying constant memories from host to device
 
 typedef uint8_t u8;
 typedef std::tuple<double, double> velocity2;
@@ -26,12 +34,21 @@ number_of_tiles(size_t width, size_t block_width)
     return ceil( ((double) width)/block_width );
 }
 
-
+// Note: state[] size is equal to total thread size
+__global__ void setup_kernel(curandState *state, size_t width, size_t height)
+{
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    int idy = threadIdx.y + blockIdx.y * blockDim.y;
+    int id = idy*width + idx;
+    /* Each thread gets same seed, a different sequence
+       number, no offset */
+    curand_init(1234, id, 0, &state[id]);
+}
 
 template <size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT, size_t timesteps>
 __global__
 void
-fhp_kernel(u8 *grid, size_t width, size_t height)
+fhp_kernel(u8 *grid, size_t width, size_t height, curandState *state)
 {
     static_assert(BLOCK_WIDTH * BLOCK_WIDTH <= 1024);
     __shared__ u8 s_in[BLOCK_HEIGHT+2][BLOCK_WIDTH+2];
@@ -41,6 +58,7 @@ fhp_kernel(u8 *grid, size_t width, size_t height)
     const auto local_col = threadIdx.x+1;
     const auto row = blockIdx.y * blockDim.y + threadIdx.y;
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;
+    curandState localstate = state[row*width + col];
     __syncthreads();
 
 #   pragma unroll
@@ -106,7 +124,17 @@ fhp_kernel(u8 *grid, size_t width, size_t height)
         bit <<= 1;
         state &= (bit & s_in[local_row-1][local_col+1]);
 
-        // 3. perform collision
+// 3. %%%%%%%%%%%% perform collision
+        u8 size = d_eq_class_size[state];
+        u8 base_index = d_state_to_eq[state];
+
+        // This is from [0,...,size-1]
+        float rand = curand(&localstate);
+        rand *= size-0.00001
+        u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
+
+        state = d_eq_classes[base_index + random_index];
+
         // 4. send result back to main memory
         grid[row * width + col] = state;
     }
