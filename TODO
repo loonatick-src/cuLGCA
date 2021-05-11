@@ -1,0 +1,10 @@
+struct fhp_grid
+-> velocities (device vector)
+-> word * grid
+-> __device__ functions
+    -> stream
+    -> collide
+    -> momentum
+    -> average momentum(radius)
+    -> particle_count
+}
