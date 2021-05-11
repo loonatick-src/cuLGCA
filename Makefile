@@ -10,9 +10,9 @@ TEST_SRC=$(wildcard tests/*_tests.cu)
 TESTS=$(patsubst %.cu, %, $(TEST_SRC))
 
 TARGET=build/libfhp.a
-SO_TARGET=$(patsubst %.a, %.so, $(TARGET))
+# SO_TARGET=$(patsubst %.a, %.so, $(TARGET))
 
-all: $(TARGET) $(SO_TARGET) tests
+all: $(TARGET) tests # $(SO_TARGET)
 
 dev: CFLAGS = -g  -Isrc $(OPTFLAGS)
 dev: all
@@ -24,8 +24,8 @@ $(TARGET): build $(OBJECTS)
 	ar rcs $@ $(OBJECTS)
 	ranlib $@
 
-$(SO_TARGET): $(TARGET) $(OBJECTS)
-	$(CC) -shared -o $@ $(OBJECTS)
+# $(SO_TARGET): $(TARGET) $(OBJECTS)
+#	$(CC) -shared -o $@ $(OBJECTS)
 
 build:
 	@mkdir -p build

@@ -13,28 +13,37 @@ struct velocity
     velocity(const std::array<float_type, dim>& arr) :
         velocity_vec {arr} {}
 
-    // index subscript operator
-    float_type
-    operator[](size_t index)
+    velocity(const velocity& v) = default;
+    velocity() = default;
+
+    float_type&
+    operator[](const size_t& index)
     {
-        return this->velocity_vec[index];
+        float_type& rv = velocity_vec[index];
+        return rv;
     }
 
-    velocity
-    operator+(const velocity& v2)
+    const float_type&
+    operator[](const size_t& index) const
     {
-        velocity v_out;
+        return velocity_vec[index];
+    }
+
+    auto
+    operator+(const velocity& v2) const
+    {
+        std::array<float_type, dim> arr;
         for (size_t i = 0; i < dim; i++)
         {
-            v_out[i] = velocity_vec[i] + v2[i];
+            arr[i] = velocity_vec[i] + v2[i];
         }
-        return v_out;
+        return velocity(arr);
     }
 
-    velocity
-    operator-(const velocity& v2)
+    velocity<dim, float_type>
+    operator-(const velocity& v2) const
     {
-        velocity v_out;
+        velocity<dim, float_type> v_out;
         for (size_t i = 0; i < dim; i++)
         {
             v_out[i] = velocity_vec[i] - v2[i];
@@ -43,8 +52,7 @@ struct velocity
     }
 
 
-    inline
-    float_type
+    inline float_type
     speed()
     {
         float_type rv = 0;
@@ -71,7 +79,7 @@ struct velocity
 
     inline
     float_type
-    norm_diff(const velocity& v2)
+    norm_diff(const velocity<dim, float_type>& v2)
     {
         const auto v = (*this) - v2; 
         return v.speed();
