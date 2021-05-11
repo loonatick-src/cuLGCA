@@ -1,9 +1,9 @@
 tests/tests.log
 build/*
 *.swp
-*.a
-*.so
-*.o
+*/*.a
+*/*.so
+*/*.o
 *.i
 *.ii
 *.gpu
