@@ -108,29 +108,29 @@ fhp_kernel(u8 *grid, size_t width, size_t height, curandState *state)
         __syncthreads();
 
 
-// 2. %%%%%%%%%%%% streaming operator
-        u8 state = s_in[local_row][local_col];
-        const u8 bit = 0x1;
+        // 2. %%%%%%%%%%%% streaming operator
+        u8 state = 0 | (1<<6 & (s_in[local_row][local_col]));
+        u8 bit = 0x1;
         // TODO: redo with iterator using positive modulo
-        state &= (bit & s_in[local_row][local_col+1]);
+        state |= (bit & s_in[local_row][local_col-1]);
         bit <<= 1;
-        state &= (bit & s_in[local_row-1][local_col]);
+        state |= (bit & s_in[local_row+1][local_col]);
         bit <<= 1;
-        state &= (bit & s_in[local_row-1][local_col+1]);
+        state |= (bit & s_in[local_row+1][local_col+1]);
         bit <<= 1;
-        state &= (bit & s_in[local_row][local_col-1]);
+        state |= (bit & s_in[local_row][local_col+1]);
         bit <<= 1;
-        state &= (bit & s_in[local_row-1][local_col]);
+        state |= (bit & s_in[local_row-1][local_col]);
         bit <<= 1;
-        state &= (bit & s_in[local_row-1][local_col+1]);
+        state |= (bit & s_in[local_row-1][local_col-1]);
 
-// 3. %%%%%%%%%%%% perform collision
+        // 3. %%%%%%%%%%%% perform collision
         u8 size = d_eq_class_size[state];
         u8 base_index = d_state_to_eq[state];
 
         // This is from [0,...,size-1]
-        float rand = curand(&localstate);
-        rand *= size-0.00001
+        float rand = curand_uniform(&localstate);
+        rand *= size-0.00001;
         u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
 
         state = d_eq_classes[base_index + random_index];
