@@ -6,34 +6,86 @@
 #include <vector>
 
 
-typedef uint8_t u8;
-typedef std::tuple<double, double> velocity2;
-
-
-auto
-make_velocity(double vx, double vy)
+template <size_t dim, typename float_type>
+struct velocity
 {
-    return std::tuple<double, double> { vx, vy };
-}
+    // buffer for storing float values
+    std::array<float_type, dim> velocity_vec;
 
-auto
-energy(velocity2 v)
-{
-    auto vx = std::get<0>(v);
-    auto vy = std::get<1>(v);
-    return vx*vx + vy*vy;
-}
+    // constructor from std::array
+    velocity(const std::array<float_type, dim>& arr) :
+        velocity_vec {arr} {}
+
+    // index subscript operator
+    float_type
+    operator[](size_t index)
+    {
+        return this->velocity_vec[index];
+    }
+
+    velocity
+    operator+(const velocity& v2)
+    {
+        velocity v_out;
+        for (size_t i = 0; i < dim; i++)
+        {
+            v_out[i] = velocity_vec[i] + v2[i];
+        }
+        return v_out;
+    }
+
+    velocity
+    operator-(const velocity& v2)
+    {
+        velocity v_out;
+        for (size_t i = 0; i < dim; i++)
+        {
+            v_out[i] = velocity_vec[i] - v2[i];
+        }
+        return v_out;
+    }
 
 
-auto
-norm_diff(velocity2 v1, velocity2 v2)
-{
-    auto dvx = std::get<0>(v1) - std::get<0>(v2);
-    auto dvy = std::get<1>(v1) - std::get<1>(v2);
-    return sqrt(dvx*dvx + dvy*dvy);
-}
+    inline
+    float_type
+    speed()
+    {
+        float_type rv = 0;
+        for (auto v : velocity_vec)
+        {
+            rv += v * v;     
+        }
+        return sqrt(rv);
+    }
 
 
+    inline
+    float_type
+    kinetic_energy()
+    {
+        float_type rv = 0;
+        for (auto v : velocity_vec)
+        {
+            rv += v * v;
+        }
+        return rv / 2;
+    }
+
+
+    inline
+    float_type
+    norm_diff(const velocity& v2)
+    {
+        const auto v = (*this) - v2; 
+        return v.speed();
+    }
+};
+
+
+velocity2 = velocity<double, 2>;
+
+
+#if 0
 auto
 rotate(velocity2 v, double radians)
 {
@@ -44,6 +96,7 @@ rotate(velocity2 v, double radians)
 
     return make_velocity(c*vx - s*vy, s*vx + c*vy);
 }
+#endif
 
 
 template <size_t n>
