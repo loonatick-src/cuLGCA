@@ -10,4 +10,4 @@ build/*
 *.ptx
 *.cubin
 *.fatbin
-/tests/*_tests
+tests/*_tests
