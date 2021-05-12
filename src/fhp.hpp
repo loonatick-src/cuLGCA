@@ -1,7 +1,7 @@
 # pragma once
 #include "dbg.h"
-#include <thrust/device_vector>
-#include <thrust/host_vector>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include "velocity.hpp"
 
 
@@ -9,13 +9,14 @@ typedef uint8_t u8;
 typedef uint32_t u32;
 typedef velocity<2, double> velocity2;
 
+
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
 struct fhp_grid
 {
     word *device_grid;
     const size_t width, height;
     const thrust::device_vector<velocity2> channels;
-
+    
     fhp_grid(size_t w, size_t h,
             thrust::host_vector<velocity2> velocities, word *buffer) :
         width {w}, height{h}, channels {velocities}
@@ -50,6 +51,8 @@ struct fhp_grid
     void occupancy();
 };
 
+
+// kernel
 template <typename word, u8 channel_count, size_t timesteps,
          size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
 __global__

@@ -1,7 +1,6 @@
 #pragma once
 #include <array>
 #include <cmath>
-#include "velocity.hpp"
 
 template <size_t dim, typename float_type>
 struct velocity
@@ -42,6 +41,9 @@ struct velocity
         }
         return true;
     }
+
+    velocity&
+    operator=(const velocity&) = default;
 
     auto
     operator+(const velocity& v2) const
@@ -123,8 +125,8 @@ velocity2::rotate_inplace(double radians)
     const auto vx = std::get<0>(this->velocity_vec);
     const auto vy = std::get<1>(this->velocity_vec);
 
-    const auto vx_r = c * vx + s * vy;
-    const auto vy_r = -s * vx + c * vy;
+    const auto vx_r = c*vx - s*vy;
+    const auto vy_r = s*vx + c*vy;
     std::get<0>(this->velocity_vec) = vx_r;
     std::get<1>(this->velocity_vec) = vy_r;
 }
@@ -139,8 +141,8 @@ velocity2::rotate(double radians) const
     const auto vx = std::get<0>(this->velocity_vec);
     const auto vy = std::get<1>(this->velocity_vec);
 
-    const auto vx_r = c * vx + s * vy;
-    const auto vy_r = -s * vx + c * vy;
+    const auto vx_r = c*vx - s*vy;
+    const auto vy_r = s*vx + c*vy;
     
     return velocity2({vx_r, vy_r});
 }

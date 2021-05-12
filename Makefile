@@ -36,7 +36,7 @@ tests: LDLIBS = $(TARGET)
 tests: $(TESTS)
 	sh ./tests/runtests.sh
 
-$(TESTS): $(TEST_SRC)
+tests/%_tests: tests/%_tests.cu
 	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
 clean:
