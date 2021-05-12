@@ -67,18 +67,18 @@ struct fhp_grid
 
         setup_constants(this);
         
-        const int GRID_SIZE = 8;
-        std::cout<<"In Initializer:\n";
-        for(int i=0; i<GRID_SIZE; i++) 
-        {
-            for(int j=0; j<GRID_SIZE; j++){
-                u8 t = output[i*GRID_SIZE+j];
-                // std::bitset<8> x(t);
-                std::cout << (int)t <<" ";
-            }
-            std::cout << "\n";
-        }
-        std::cout << "\n\n";
+        // const int GRID_SIZE = 8;
+        // std::cout<<"In Initializer:\n";
+        // for(int i=0; i<GRID_SIZE; i++) 
+        // {
+        //     for(int j=0; j<GRID_SIZE; j++){
+        //         u8 t = output[i*GRID_SIZE+j];
+        //         // std::bitset<8> x(t);
+        //         std::cout << (int)t <<" ";
+        //     }
+        //     std::cout << "\n";
+        // }
+        // std::cout << "\n\n";
 
     }
 
@@ -91,9 +91,6 @@ struct fhp_grid
     template <size_t timesteps>
     void start_evolution();
     
-    __device__
-    word stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2]);
-
     __device__
     void collide(curandState *localstate, word *state);
     
@@ -131,7 +128,11 @@ typedef fhp_grid<uint8_t, 6, 8, 8> fhp1_grid;
 void
 setup_constants(fhp1_grid *grid);
 
+template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
+__device__
+word stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2]);
+
 // kernel
 __global__
 void
-evolve(fhp1_grid);
+evolve(u8* device_grid, curandState* randstate, int width, int height);

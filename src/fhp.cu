@@ -8,15 +8,13 @@ const size_t default_bh = 8;
 
 //TODO: do I need the template arguments in every method declaration?
 
-
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
-__forceinline__
 __device__
 word
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2])
+stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2])
 {
-    word state = 0 | (1<<6 & (sdm[local_row][local_col]));
-    word bit = 0x1;
+    u8 state = 0 | (1<<6 & (sdm[local_row][local_col]));
+    u8 bit = 0x1;
 
     // TODO: redo with iterator using positive modulo
     state |= (bit & sdm[local_row][local_col-1]);
@@ -121,20 +119,18 @@ setup_kernel(curandState *state, size_t width, size_t height)
 
 __global__
 void
-evolve(fhp1_grid grid)
+evolve(u8* device_grid, curandState* randstate, int width, int height)
 {
     __shared__ u8 sdm[default_bh+2][default_bw+2];
     const auto local_row = threadIdx.y+1;
     const auto local_col = threadIdx.x+1;
     const auto row = blockIdx.y * blockDim.y + threadIdx.y;
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;
-    int width = grid.width;
-    int height = grid.height;
-    curandState localstate = grid.state[row*width + col];
+    curandState localstate = randstate[row*width + col];
     __syncthreads();
 
     // 1. load into shared memory
-    sdm[local_row][local_col] = grid.device_grid[row*width + col];
+    sdm[local_row][local_col] = device_grid[row*width + col];
     // As such all these bool values can be stored in the same
     // register. Is nvcc smart enough to do this if the number
     // of registers at hand are low?
@@ -149,45 +145,35 @@ evolve(fhp1_grid grid)
     {
         pad_row = (row == 0) ? height-1 : row-1;
         local_pad_row = 0;
-        sdm[local_pad_row][local_col] = grid.device_grid[pad_row * width + col];
+        sdm[local_pad_row][local_col] = device_grid[pad_row * width + col];
     } else if (ubound_y)
     {
         pad_row = (row+1) % height;
         local_pad_row = blockDim.y+1;
-        sdm[blockDim.y+1][local_col] = grid.device_grid[pad_row * width + col];
+        sdm[blockDim.y+1][local_col] = device_grid[pad_row * width + col];
     }
     __syncthreads();
     if (lbound_x)
     {
         pad_col = (col == 0) ? width-1 : col-1;
         local_pad_col = 0;
-        sdm[local_row][local_pad_col] = grid.device_grid[row * width + pad_col];
+        sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
     } else if (ubound_x)
     {
         pad_col = (col+1) % width;
         local_pad_col = blockDim.x+1;
-        sdm[local_row][local_pad_col] = grid.device_grid[row * width + pad_col];
+        sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
     }
     __syncthreads();
 
     if (pad_row != row && pad_col != col)
     {
-        sdm[local_pad_row][local_pad_col] = grid.device_grid[pad_row*width + pad_col]; 
+        sdm[local_pad_row][local_pad_col] = device_grid[pad_row*width + pad_col]; 
     }
     __syncthreads();
-    if (row == 1 && col == 1){
-        u8 state = 0 | (1<<6 & (sdm[local_row][local_col]));
-        u8 bit = 0x1;
-        printf("row %d, col %d: state: %d\n", row, col, state);
-        printf("%d %d %d\n", sdm[local_row][local_col-1], sdm[local_row+1][local_col], sdm[local_row+1][local_col+1]);
-        printf("%d %d %d\n", sdm[local_row][local_col+1], sdm[local_row-1][local_col], sdm[local_row-1][local_col-1]);
-    }
 
     // 2. Streaming
-    u8 state = grid.stream(local_row, local_col, sdm);
-    if (row == 1 && col == 1){
-        printf("row %d, col %d: stream: %d\n", row, col, state);
-    }
+    u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
 
     // 3. Collision
     u8 size = d_eq_class_size[state];
@@ -199,12 +185,9 @@ evolve(fhp1_grid grid)
     u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
 
     state = d_eq_classes[base_index + random_index];
-    // if (row == 1 && col == 1){
-        // printf("row %d, col %d: collide: %d\n", row, col, state);
-    // }
 
-    grid.device_grid[row*width + col] = state;
-    printf("row %d, col %d: collide: %d\n", row, col, grid.device_grid[row*width + col]);
+    device_grid[row*width + col] = state;
+    // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
 
     return;
 }
@@ -328,15 +311,15 @@ setup_constants(fhp1_grid *grid)
     //     std::cout << std::endl;
     // }
 
-    std::cout << std::endl; 
-    for(int i=0; i<array_length; i++) 
-    {
-        std::bitset<8> x(h_eq_classes[i]);
-        std::cout << (int)h_eq_classes[i] << ' ';
-        if (i==63)
-            std::cout<<"\n";
-    }
-    std::cout<<"\n\n";
+    // std::cout << std::endl; 
+    // for(int i=0; i<array_length; i++) 
+    // {
+    //     std::bitset<8> x(h_eq_classes[i]);
+    //     std::cout << (int)h_eq_classes[i] << ' ';
+    //     if (i==63)
+    //         std::cout<<"\n";
+    // }
+    // std::cout<<"\n\n";
     
     // for(int i=0; i<array_length; i++) 
     // {
