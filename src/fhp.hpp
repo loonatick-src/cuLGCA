@@ -7,7 +7,6 @@
 
 typedef uint8_t u8;
 typedef uint32_t u32;
-typedef velocity<2, double> velocity2;
 
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
@@ -62,16 +61,19 @@ struct fhp_grid
     
         
     __device__
-    void occupancy();
+    void occupancy(word state);
 
     __device__
-    void momentum();
+    auto momentum_x(word state, double *device_channels)->decltype(device_channels[0]);
+
+    __device__
+    auto momentum_y(word state, double *device_channels)->decltype(device_channels[1]);
+    
 };
 
+typedef fhp_grid, 6, defaul_bw, default_bh> fhp1_grid;
 
 // kernel
-template <typename word, u8 channel_count, size_t timesteps,
-         size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
 __global__
 void
-evolve(fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT> grid);
+evolve(fhp1_grid);
