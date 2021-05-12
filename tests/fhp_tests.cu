@@ -11,7 +11,7 @@
 #include <vector>
 #include <bitset>
 
-char *test_fhp_1step()
+const char *test_fhp_1step()
 {
     int width = 8, height = 8;
     long seed = 1234;
@@ -85,7 +85,7 @@ char *test_fhp_1step()
     return NULL;
 }
 
-char *all_tests()
+const char *all_tests()
 {
     mu_suite_start();
 

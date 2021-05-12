@@ -16,7 +16,7 @@ flerror(double of, double against)
     return fabs(of - against); 
 }
 
-char *test_velocity_gen()
+const char *test_velocity_gen()
 {
     const auto rad = M_PI/3.0;
     const auto threshold = 0.0001l;
@@ -51,7 +51,7 @@ char *test_velocity_gen()
     return NULL;
 }
 
-char *all_tests()
+const char *all_tests()
 {
     mu_suite_start();
 

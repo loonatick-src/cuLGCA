@@ -15,7 +15,7 @@ sq(numeric_type v)
 
 const auto sqd = sq<double>;
 
-char *test_velocity_init()
+const char *test_velocity_init()
 {
     debug("test_velocity_init");
     const double vx = 0.5;
@@ -31,7 +31,7 @@ char *test_velocity_init()
     return NULL;
 }
 
-char *test_velocity_algebra()
+const char *test_velocity_algebra()
 {
     debug(" ");
     const double vx1 = 0.2;
@@ -82,7 +82,7 @@ char *test_velocity_algebra()
 }
 
 
-char *test_rotate_and_clean()
+const char *test_rotate_and_clean()
 {
     const auto rad = M_PI/3.0l;
     const auto c = cos(rad);
@@ -107,7 +107,7 @@ char *test_rotate_and_clean()
 }
 
 
-char *all_tests()
+const char *all_tests()
 {
     mu_suite_start();
 
