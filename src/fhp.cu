@@ -33,7 +33,7 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::collide()
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
 __device__
 double
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_x()
+fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_x(word state, double *device_channels)
 {
     double rv = 0.0l; 
     u8 bit = 0x1;
@@ -52,7 +52,7 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_x()
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
 __device__
 double
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_y()
+fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_y(word state, double *device_channels)
 {
     double rv = 0.0l; 
     const word bit = 0x1;
@@ -70,7 +70,7 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_y()
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
 __device__
 word
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::occupancy(state)
+fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::occupancy(word state)
 {
     word count = 0;
     while (state)
@@ -86,7 +86,7 @@ __global__
 void
 evolve(fhp1_grid)
 {
-    __shared__ sdm[BLOCK_HEIGHT][BLOCK_WIDTH];
+    __shared__ int sdm[default_bh][default_bw];
     // TODO
 
     return;

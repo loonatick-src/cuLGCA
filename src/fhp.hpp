@@ -61,17 +61,17 @@ struct fhp_grid
     
         
     __device__
-    void occupancy(word state);
+    word occupancy(word state);
 
     __device__
-    auto momentum_x(word state, double *device_channels)->decltype(device_channels[0]);
+    auto momentum_x(word state, double *device_channels)->double;
 
     __device__
-    auto momentum_y(word state, double *device_channels)->decltype(device_channels[1]);
+    auto momentum_y(word state, double *device_channels)->double;
     
 };
 
-typedef fhp_grid, 6, defaul_bw, default_bh> fhp1_grid;
+typedef fhp_grid<uint8_t, 6, 8, 8> fhp1_grid;
 
 // kernel
 __global__
