@@ -17,7 +17,7 @@ all: $(TARGET) tests # $(SO_TARGET)
 dev: CFLAGS = -g  -Isrc $(OPTFLAGS)
 dev: all
 
-src/%.o: src/%.cu
+src/%.o: src/%.cu src/*.hpp
 	$(CC) -c $(CFLAGS) $< -o $@
 
 $(TARGET): build $(OBJECTS)
