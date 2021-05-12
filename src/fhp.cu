@@ -11,20 +11,43 @@ const size_t default_bh = 4;
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
 __device__
-void
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::stream()
+word
+fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::stream(int local_row, int local_col)
 {
-    // TODO
-    return;
+    word state = 0 | (1<<6 & (device_grid[local_row][local_col]));
+    word bit = 0x1;
+
+    // TODO: redo with iterator using positive modulo
+    state |= (bit & device_grid[local_row][local_col-1]);
+    bit <<= 1;
+    state |= (bit & device_grid[local_row+1][local_col]);
+    bit <<= 1;
+    state |= (bit & device_grid[local_row+1][local_col+1]);
+    bit <<= 1;
+    state |= (bit & device_grid[local_row][local_col+1]);
+    bit <<= 1;
+    state |= (bit & device_grid[local_row-1][local_col]);
+    bit <<= 1;
+    state |= (bit & device_grid[local_row-1][local_col-1]);
+
+    return state;
 }
 
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
 __device__
 void
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::collide()
+fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::collide(curandState localstate, word state)
 {
-    // TODO
+    word size = d_eq_class_size[state];
+    word base_index = d_state_to_eq[state];
+
+    // This is from [0,...,size-1]
+    float rand = curand_uniform(&localstate);
+    rand *= size-0.00001;
+    word random_index = (word)(rand) % size; // Require curand_init for each thread
+
+    state = d_eq_classes[base_index + random_index];
     return;
 
 }
@@ -79,6 +102,19 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::occupancy(word state)
         count++;
     }
     return count;
+}
+
+template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
+__device__
+void setup_kernel(curandState *state, size_t width, size_t height) 
+{
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    int idy = threadIdx.y + blockIdx.y * blockDim.y;
+    int id = idy*width + idx;
+    /* Each thread gets same seed, a different sequence
+       number, no offset */
+    curand_init(1234, id, 0, &state[id]);
+    return;
 }
 
 

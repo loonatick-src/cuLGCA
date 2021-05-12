@@ -1,12 +1,16 @@
 # pragma once
 #include <vector>
 #include <cassert>
+#include <curand_kernel.h>
 #include "dbg.h"
 #include "velocity.hpp"
 
 
 typedef uint8_t u8;
 typedef uint32_t u32;
+__constant__ u8 d_eq_class_size[128];
+__constant__ u8 d_state_to_eq[128];
+__constant__ u8 d_eq_classes[128];
 
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
@@ -14,6 +18,7 @@ struct fhp_grid
 {
     word *device_grid;
     double *device_channels;
+    curandState *state;
 
     const size_t width, height;
     const std::vector<velocity2> channels;
@@ -35,12 +40,16 @@ struct fhp_grid
             temp[i] = channels[i][0]; 
             temp[i+1] = channels[i][1];
         }
-        cudaMalloc((void **) device_channels, channel_mem_sz);
-        cudaMalloc((void **) device_grid, mem_sz);
+        cudaMalloc((void **) &device_channels, channel_mem_sz);
+        cudaMalloc((void **) &device_grid, mem_sz);
+        cudaMalloc((void **) &state, width*height*sizeof(curandState));
         cudaMemcpy(device_grid, buffer, mem_sz,
                 cudaMemcpyHostToDevice);
         cudaMemcpy(device_channels, temp, channel_mem_sz,
                 cudaMemcpyHostToDevice);
+
+        // Setup curand states
+        setup_kernel(state, width, height);
         delete[] temp;
     }
 
@@ -54,10 +63,10 @@ struct fhp_grid
     void start_evolution();
     
     __device__
-    void stream();
+    word stream(int, int);
 
     __device__
-    void collide();
+    void collide(curandState localstate, word state);
     
         
     __device__
@@ -68,6 +77,9 @@ struct fhp_grid
 
     __device__
     auto momentum_y(word state, double *device_channels)->double;
+
+    __device__
+    void setup_kernel(curandState *state, size_t width, size_t height);
     
 };
 
