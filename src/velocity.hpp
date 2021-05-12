@@ -8,7 +8,7 @@ struct velocity
     // buffer for storing float values
     std::array<float_type, dim> velocity_vec;
 
-    // constructor from std::array
+    // constructor from std::vector
     velocity(const std::array<float_type, dim>& arr) :
         velocity_vec {arr} {}
 
@@ -34,12 +34,7 @@ struct velocity
     auto
     operator==(const velocity& v2) const
     {
-        for (size_t i = 0; i < dim; i++)
-        {
-            if (velocity_vec[i] != v2[i])
-                return false;
-        }
-        return true;
+        return velocity_vec == v2.velocity_vec;
     }
 
     velocity&
