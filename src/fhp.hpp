@@ -16,7 +16,7 @@ __constant__ u8 d_eq_classes[128];
 
 
 __global__
-void setup_kernel(curandState *state, size_t width, size_t height);
+void setup_kernel(curandState *state, size_t width, size_t height, long seed=1234);
 
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
@@ -27,12 +27,13 @@ struct fhp_grid
     curandState *state;
 
     const size_t width, height;
+    long seed;
     const std::vector<velocity2> channels;
 
     
     fhp_grid(size_t w, size_t h,
-            std::vector<velocity2> velocities, word *buffer) :
-        width {w}, height{h}, channels {velocities}
+            std::vector<velocity2> velocities, word *buffer, long seed) :
+        width {w}, height{h}, channels {velocities}, seed {seed}
     {
         static_assert(sizeof(word)*8 > channel_count);
         assert(buffer != NULL);
@@ -58,7 +59,7 @@ struct fhp_grid
         // Setup curand states
         dim3 block(BLOCK_WIDTH, BLOCK_HEIGHT);
         dim3 grid(width/BLOCK_WIDTH, height/BLOCK_HEIGHT);
-        setup_kernel<<<grid, block>>>(state, width, height);
+        setup_kernel<<<grid, block>>>(state, width, height, seed);
         delete[] temp;
 
         word* output = (word*) malloc(width*height*sizeof(word));
@@ -135,4 +136,4 @@ word stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2
 // kernel
 __global__
 void
-evolve(u8* device_grid, curandState* randstate, int width, int height);
+evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps);

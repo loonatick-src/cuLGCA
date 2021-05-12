@@ -105,21 +105,21 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::occupancy(word state)
 
 __global__
 void 
-setup_kernel(curandState *state, size_t width, size_t height) 
+setup_kernel(curandState *state, size_t width, size_t height, long seed) 
 {
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     int idy = threadIdx.y + blockIdx.y * blockDim.y;
     int id = idy*width + idx;
     /* Each thread gets same seed, a different sequence
        number, no offset */
-    curand_init(1234, id, 0, &state[id]);
+    curand_init(seed, id, 0, &state[id]);
     return;
 }
 
 
 __global__
 void
-evolve(u8* device_grid, curandState* randstate, int width, int height)
+evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps)
 {
     __shared__ u8 sdm[default_bh+2][default_bw+2];
     const auto local_row = threadIdx.y+1;
@@ -129,66 +129,69 @@ evolve(u8* device_grid, curandState* randstate, int width, int height)
     curandState localstate = randstate[row*width + col];
     __syncthreads();
 
-    // 1. load into shared memory
-    sdm[local_row][local_col] = device_grid[row*width + col];
-    // As such all these bool values can be stored in the same
-    // register. Is nvcc smart enough to do this if the number
-    // of registers at hand are low?
-    const auto ubound_y {local_row == blockDim.y-1};
-    const auto ubound_x {local_col == blockDim.x-1};
-    const auto lbound_y {local_row == 0};
-    const auto lbound_x {local_col == 0};
-    size_t pad_row = row, pad_col = col;
-    size_t local_pad_row = local_row, local_pad_col = local_col;
-    // NSight is going to roast tf out of this kernel
-    if (lbound_y)
+    for (size_t t = 0; t < timesteps; t++)
     {
-        pad_row = (row == 0) ? height-1 : row-1;
-        local_pad_row = 0;
-        sdm[local_pad_row][local_col] = device_grid[pad_row * width + col];
-    } else if (ubound_y)
-    {
-        pad_row = (row+1) % height;
-        local_pad_row = blockDim.y+1;
-        sdm[blockDim.y+1][local_col] = device_grid[pad_row * width + col];
+
+        // 1. load into shared memory
+        sdm[local_row][local_col] = device_grid[row*width + col];
+        // As such all these bool values can be stored in the same
+        // register. Is nvcc smart enough to do this if the number
+        // of registers at hand are low?
+        const auto ubound_y {local_row == blockDim.y-1};
+        const auto ubound_x {local_col == blockDim.x-1};
+        const auto lbound_y {local_row == 0};
+        const auto lbound_x {local_col == 0};
+        size_t pad_row = row, pad_col = col;
+        size_t local_pad_row = local_row, local_pad_col = local_col;
+        // NSight is going to roast tf out of this kernel
+        if (lbound_y)
+        {
+            pad_row = (row == 0) ? height-1 : row-1;
+            local_pad_row = 0;
+            sdm[local_pad_row][local_col] = device_grid[pad_row * width + col];
+        } else if (ubound_y)
+        {
+            pad_row = (row+1) % height;
+            local_pad_row = blockDim.y+1;
+            sdm[blockDim.y+1][local_col] = device_grid[pad_row * width + col];
+        }
+        __syncthreads();
+        if (lbound_x)
+        {
+            pad_col = (col == 0) ? width-1 : col-1;
+            local_pad_col = 0;
+            sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
+        } else if (ubound_x)
+        {
+            pad_col = (col+1) % width;
+            local_pad_col = blockDim.x+1;
+            sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
+        }
+        __syncthreads();
+
+        if (pad_row != row && pad_col != col)
+        {
+            sdm[local_pad_row][local_pad_col] = device_grid[pad_row*width + pad_col]; 
+        }
+        __syncthreads();
+
+        // 2. Streaming
+        u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
+
+        // 3. Collision
+        u8 size = d_eq_class_size[state];
+        u8 base_index = d_state_to_eq[state];
+
+        // This is from [0,...,size-1]
+        float rand = curand_uniform(&localstate);
+        rand *= size-0.00001;
+        u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
+
+        state = d_eq_classes[base_index + random_index];
+
+        device_grid[row*width + col] = state;
+        // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
     }
-    __syncthreads();
-    if (lbound_x)
-    {
-        pad_col = (col == 0) ? width-1 : col-1;
-        local_pad_col = 0;
-        sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
-    } else if (ubound_x)
-    {
-        pad_col = (col+1) % width;
-        local_pad_col = blockDim.x+1;
-        sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
-    }
-    __syncthreads();
-
-    if (pad_row != row && pad_col != col)
-    {
-        sdm[local_pad_row][local_pad_col] = device_grid[pad_row*width + pad_col]; 
-    }
-    __syncthreads();
-
-    // 2. Streaming
-    u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
-
-    // 3. Collision
-    u8 size = d_eq_class_size[state];
-    u8 base_index = d_state_to_eq[state];
-
-    // This is from [0,...,size-1]
-    float rand = curand_uniform(&localstate);
-    rand *= size-0.00001;
-    u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
-
-    state = d_eq_classes[base_index + random_index];
-
-    device_grid[row*width + col] = state;
-    // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
-
     return;
 }
 

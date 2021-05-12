@@ -14,6 +14,7 @@
 char *test_fhp_1step()
 {
     int width = 8, height = 8;
+    long seed = 1234;
     std::vector<velocity2> channels = \
     {
         velocity2{{1.0, 0.0}},
@@ -35,24 +36,35 @@ char *test_fhp_1step()
         14, 2, 52, 1, 33, 61, 28, 7
     };
 
-    fhp1_grid fhp(width, height, channels, buffer);
+    fhp1_grid fhp(width, height, channels, buffer, seed);
     u8* d_ptr = fhp.device_grid;
 
     dim3 block(8, 8);
     dim3 grid(width/8, height/8);
-    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height);
+    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1);
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError( ));
 
 
-    // gpuErrchk(cudaGetLastError( ));
     u8 *output = (u8*) malloc(128*sizeof(u8));
-    // gpuErrchk(cudaGetLastError( ));
-    // fhp.get_output(output);
     cudaMemcpy(output, d_ptr, 8*8*sizeof(u8),
         cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError( ));
 
+    // const int GRID_SIZE = 8;
+    // std::cout << "\n\n";
+    // for(int i=0; i<GRID_SIZE; i++) 
+    // {
+    //     for(int j=0; j<GRID_SIZE; j++){
+    //         u8 t = output[i*GRID_SIZE+j];
+    //         std::bitset<8> x(t);
+    //         std::cout << (int)t <<"\t";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+
+    // THis is output for state initilized with `curand_init(1234, id, 0, &state[id]);`
     u8 expected[] = {
         4, 36, 2, 3, 38, 38, 15, 14, 
         8, 125, 36, 48, 59, 20, 39, 5, 
