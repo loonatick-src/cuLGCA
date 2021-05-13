@@ -52,10 +52,10 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::collide(curandState *l
 }
 
 
-template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
+template <typename word, u8 channel_count>
 __device__
 double
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_x(word state, double *device_channels)
+momentum_x(word state, double *device_channels)
 {
     double rv = 0.0l; 
     u8 bit = 0x1;
@@ -71,10 +71,10 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_x(word state,
 }
 
 
-template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
+template <typename word, u8 channel_count>
 __device__
 double
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_y(word state, double *device_channels)
+momentum_y(word state, double *device_channels)
 {
     double rv = 0.0l; 
     const word bit = 0x1;
@@ -89,10 +89,10 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::momentum_y(word state,
     return rv;
 }
 
-template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT>
+template <typename word, u8 channel_count>
 __device__
 word
-fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::occupancy(word state)
+occupancy(word state)
 {
     word count = 0;
     while (state)
@@ -139,10 +139,12 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
         // of registers at hand are low?
         const auto ubound_y {local_row == blockDim.y-1};
         const auto ubound_x {local_col == blockDim.x-1};
-        const auto lbound_y {local_row == 0};
-        const auto lbound_x {local_col == 0};
+        const auto lbound_y {local_row == 1};
+        const auto lbound_x {local_col == 1};
         size_t pad_row = row, pad_col = col;
         size_t local_pad_row = local_row, local_pad_col = local_col;
+
+        // printf("row %d col %d: lr %d lbx %d\n", row, col, local_row, lbound_x);
         // NSight is going to roast tf out of this kernel
         if (lbound_y)
         {
@@ -177,6 +179,11 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
 
         // 2. Streaming
         u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
+        // if (row == 0 && col == 2){
+        //     printf("row %d, col %d: state: %d\n", row, col, state);
+        //     printf("%d %d %d\n", sdm[local_row][local_col-1], sdm[local_row+1][local_col], sdm[local_row+1][local_col+1]);
+        //     printf("%d %d %d\n", sdm[local_row][local_col+1], sdm[local_row-1][local_col], sdm[local_row-1][local_col-1]);
+        // }
 
         // 3. Collision
         u8 size = d_eq_class_size[state];
@@ -334,4 +341,20 @@ setup_constants(fhp1_grid *grid)
     free(h_eq_classes);
     free(h_state_to_eq);
     free(h_eq_class_size);
+}
+
+__global__
+void 
+momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* ocpy, int width)
+{
+    const auto row = blockIdx.y * blockDim.y + threadIdx.y;
+    const auto col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    auto state = device_grid[row*width + col];
+
+    mx[row*width + col] = momentum_x<u8, 6>(state, device_channels);
+    my[row*width + col] = momentum_y<u8, 6>(state, device_channels);
+
+    ocpy[row*width+col] = occupancy<u8, 6>(state);
+    return;
 }

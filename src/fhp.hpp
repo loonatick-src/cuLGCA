@@ -25,6 +25,8 @@ struct fhp_grid
     word *device_grid;
     double *device_channels;
     curandState *state;
+    double *mx, *my;
+    word* ocpy;
 
     const size_t width, height;
     long seed;
@@ -43,13 +45,16 @@ struct fhp_grid
         const auto mem_sz = grid_sz * sizeof(word);
         const auto channel_mem_sz = 2 * sizeof(double) * channel_count;
         double *temp = new double [2 * channel_count];
-        for (size_t i = 0; i < channels.size(); i+=2)
+        for (size_t i = 0; i < channels.size(); i+=1)
         {
-            temp[i] = channels[i][0]; 
-            temp[i+1] = channels[i][1];
+            temp[2*i] = channels[i][0]; 
+            temp[2*i+1] = channels[i][1];
         }
         cudaMalloc((void **) &device_channels, channel_mem_sz);
         cudaMalloc((void **) &device_grid, mem_sz);
+        cudaMalloc((void **) &ocpy, mem_sz);
+        cudaMalloc((void **) &mx, grid_sz*sizeof(double));
+        cudaMalloc((void **) &my, grid_sz*sizeof(double));
         cudaMalloc((void **) &state, width*height*sizeof(curandState));
         cudaMemcpy(device_grid, buffer, mem_sz,
                 cudaMemcpyHostToDevice);
@@ -86,6 +91,8 @@ struct fhp_grid
     ~fhp_grid()
     {
         cudaFree(device_grid);
+        cudaFree(mx); cudaFree(my);
+        cudaFree(ocpy);
         cudaFree(device_channels);
     }
 
@@ -96,15 +103,6 @@ struct fhp_grid
     void collide(curandState *localstate, word *state);
     
         
-    __device__
-    word occupancy(word state);
-
-    __device__
-    auto momentum_x(word state, double *device_channels)->double;
-
-    __device__
-    auto momentum_y(word state, double *device_channels)->double;
-
     velocity2
     calculate_momentum(word state);
 
@@ -129,11 +127,29 @@ typedef fhp_grid<uint8_t, 6, 8, 8> fhp1_grid;
 void
 setup_constants(fhp1_grid *grid);
 
+// Device helpers 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
 __device__
 word stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2]);
 
-// kernel
+template <typename word>
+__device__
+word occupancy(word state);
+
+template <typename word>
+__device__
+auto momentum_x(word state, double *device_channels)->double;
+
+template <typename word>
+__device__
+auto momentum_y(word state, double *device_channels)->double;
+
+
+// kernels
 __global__
 void
 evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps);
+
+__global__
+void 
+momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* ocpy, int width);
