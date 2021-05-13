@@ -307,7 +307,9 @@ setup_constants(fhp1_grid *grid)
     }
 
     cudaMemcpyToSymbol(d_state_to_eq, h_state_to_eq, 128*sizeof(uint8_t));
+    gpuErrchk(cudaGetLastError( ));
     cudaMemcpyToSymbol(d_eq_classes, h_eq_classes, 128*sizeof(uint8_t));
+    gpuErrchk(cudaGetLastError( ));
     cudaMemcpyToSymbol(d_eq_class_size, h_eq_class_size, 128*sizeof(uint8_t));
     gpuErrchk(cudaGetLastError( ));
 
@@ -361,7 +363,8 @@ momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* o
 
 __global__
 void 
-initialize_grid(u8* device_grid, double* probability, curandState *randstate, int width)
+initialize_grid(u8* device_grid, u8* device_obstacle, double* probability, 
+    curandState *randstate, int width)
 {
     const auto row = blockIdx.y * blockDim.y + threadIdx.y;
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -378,6 +381,7 @@ initialize_grid(u8* device_grid, double* probability, curandState *randstate, in
     }
 
     state >>= 1;
+    state |= (device_obstacle[row*width+col]&0b1)<<6;
     device_grid[row*width + col] = state;
 
     return;

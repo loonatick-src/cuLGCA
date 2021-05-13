@@ -27,6 +27,7 @@ struct fhp_grid
     curandState *state;
     double *mx, *my;
     word* ocpy;
+    double *probability = nullptr;
 
     const size_t width, height;
     long seed;
@@ -50,16 +51,24 @@ struct fhp_grid
             temp[2*i] = channels[i][0]; 
             temp[2*i+1] = channels[i][1];
         }
+
         cudaMalloc((void **) &device_channels, channel_mem_sz);
+        // ALLOW OPTION FOR DEVICE TO DEVICE COPY?
         cudaMalloc((void **) &device_grid, mem_sz);
         cudaMalloc((void **) &ocpy, mem_sz);
         cudaMalloc((void **) &mx, grid_sz*sizeof(double));
         cudaMalloc((void **) &my, grid_sz*sizeof(double));
         cudaMalloc((void **) &state, width*height*sizeof(curandState));
+        // If we already have grid, do we need to store this?
+        // cudaMalloc((void **) &probability, channel_count*sizeof(double));
+
+        // ALLOW OPTION FOR DEVICE TO DEVICE COPY?
         cudaMemcpy(device_grid, buffer, mem_sz,
                 cudaMemcpyHostToDevice);
         cudaMemcpy(device_channels, temp, channel_mem_sz,
                 cudaMemcpyHostToDevice);
+        // cudaMemcpy(probability, probs, prob_sz,
+        //         cudaMemcpyHostToDevice);
 
         // Setup curand states
         dim3 block(BLOCK_WIDTH, BLOCK_HEIGHT);
@@ -67,9 +76,9 @@ struct fhp_grid
         setup_kernel<<<grid, block>>>(state, width, height, seed);
         delete[] temp;
 
-        word* output = (word*) malloc(width*height*sizeof(word));
-        cudaMemcpy(output, device_grid, mem_sz,
-                cudaMemcpyDeviceToHost);
+        // word* output = (word*) malloc(width*height*sizeof(word));
+        // cudaMemcpy(output, device_grid, mem_sz,
+        //         cudaMemcpyDeviceToHost);
 
         setup_constants(this);
         
@@ -88,11 +97,74 @@ struct fhp_grid
 
     }
 
+    fhp_grid(size_t w, size_t h,
+        std::vector<velocity2> velocities, long seed, double *prob, word* obstacle):
+    width {w}, height{h}, channels {velocities}, seed {seed}
+    {
+        static_assert(sizeof(word)*8 > channel_count);
+        assert(prob != NULL);
+        assert(obstacle != NULL);
+        assert(channel_count == velocities.size());
+
+        const auto grid_sz = width * height;
+        const auto mem_sz = grid_sz * sizeof(word);
+        const auto channel_mem_sz = 2 * sizeof(double) * channel_count;
+        double *temp = new double [2 * channel_count];
+        for (size_t i = 0; i < channels.size(); i+=1)
+        {
+            temp[2*i] = channels[i][0]; 
+            temp[2*i+1] = channels[i][1];
+        }
+        word* dev_obstacle;
+
+        cudaMalloc((void **) &device_channels, channel_mem_sz);
+        cudaMalloc((void **) &device_grid, mem_sz);
+        cudaMalloc((void **) &ocpy, mem_sz);
+        cudaMalloc((void **) &mx, grid_sz*sizeof(double));
+        cudaMalloc((void **) &my, grid_sz*sizeof(double));
+        cudaMalloc((void **) &state, width*height*sizeof(curandState));
+        cudaMalloc((void **) &probability, channel_count*sizeof(double));
+
+        cudaMalloc((void **) &dev_obstacle, grid_sz*sizeof(word));
+
+        gpuErrchk(
+        cudaMemcpy(probability, prob, channel_count*sizeof(double),
+            cudaMemcpyHostToDevice)
+        );
+        gpuErrchk(
+        cudaMemcpy(dev_obstacle, obstacle, grid_sz*sizeof(word),
+            cudaMemcpyHostToDevice)
+        );
+        gpuErrchk(
+            cudaMemcpy(device_channels, temp, channel_mem_sz,
+                cudaMemcpyHostToDevice)
+        );
+
+            // Setup curand states
+        dim3 block(BLOCK_WIDTH, BLOCK_HEIGHT);
+        dim3 grid(width/BLOCK_WIDTH, height/BLOCK_HEIGHT);
+        setup_kernel<<<grid, block>>>(state, width, height, seed);
+
+        initialize_grid<<<grid, block>>>(device_grid, dev_obstacle, probability, state, width);
+        cudaDeviceSynchronize();
+        gpuErrchk(cudaGetLastError( ));
+
+
+        delete[] temp;
+        cudaFree(dev_obstacle);
+
+        setup_constants(this);
+
+    }
+
+
     ~fhp_grid()
     {
         cudaFree(device_grid);
         cudaFree(mx); cudaFree(my);
         cudaFree(ocpy);
+        cudaFree(state);
+        if (probability != nullptr) cudaFree(probability);
         cudaFree(device_channels);
     }
 
@@ -156,4 +228,5 @@ momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* o
 
 __global__
 void 
-initialize_grid(u8* device_grid, double* probability, curandState *state, int width);
+initialize_grid(u8* device_grid, u8* device_obstacle, double* probability, 
+    curandState *randstate, int width);

@@ -162,9 +162,95 @@ const char *fhp_all1()
 
 }
 
+const char *fhp_all3()
+{
+    const auto threshold = 0.0001l;
+
+    int width = 16, height = 16;
+    long seed = 1234;
+    std::vector<velocity2> channels = \
+    {
+        velocity2{{1.0, 0.0}},
+        velocity2{{0.5, 0.866025}},
+        velocity2{{-0.5, 0.866025}},
+        velocity2{{-1.0, 0.0}},
+        velocity2{{-0.5, -0.866025}},
+        velocity2{{0.5, -0.866025}}    
+    };
+
+    u8 buffer[width*height];
+    std::fill_n(buffer, width*height, 3);
+
+    buffer[5*width+5] |= 1<<6;
+    buffer[5*width+6] |= 1<<6;
+    buffer[5*width+7] |= 1<<6;
+
+    const int GRID_SIZE = width;
+    std::cout << "\n\n";
+    for(int i=0; i<GRID_SIZE; i++) 
+    {
+        for(int j=0; j<GRID_SIZE; j++){
+            u8 t = buffer[i*GRID_SIZE+j];
+            std::bitset<8> x(t);
+            std::cout << (int)t <<"\t";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "\n\n";
+
+    fhp1_grid fhp(width, height, channels, buffer, seed);
+    u8* d_ptr = fhp.device_grid;
+
+    dim3 block(8, 8);
+    dim3 grid(width/8, height/8);
+    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000);
+    momentum<<<grid, block>>>(fhp.device_grid, fhp.device_channels, 
+        fhp.mx, fhp.my, fhp.ocpy, fhp.width);
+
+    cudaDeviceSynchronize();
+    gpuErrchk(cudaGetLastError( ));
+
+
+    u8 *output = (u8*) malloc(width*height*sizeof(u8));
+    cudaMemcpy(output, d_ptr, width*height*sizeof(u8),
+        cudaMemcpyDeviceToHost);
+    gpuErrchk(cudaGetLastError( ));
+
+    double *mx = (double*) malloc(width*height*sizeof(double));
+    double *my = (double*) malloc(width*height*sizeof(double));
+    u8 *ocpy = (u8*) malloc(width*height*sizeof(u8));
+    cudaMemcpy(mx, fhp.mx, width*height*sizeof(double),
+        cudaMemcpyDeviceToHost);
+    gpuErrchk(cudaGetLastError( ));
+    cudaMemcpy(my, fhp.my, width*height*sizeof(double),
+        cudaMemcpyDeviceToHost);
+    gpuErrchk(cudaGetLastError( ));
+    cudaMemcpy(ocpy, fhp.ocpy, width*height*sizeof(u8),
+        cudaMemcpyDeviceToHost);
+    gpuErrchk(cudaGetLastError( ));
+
+    std::cout << "\n\n";
+    for(int i=0; i<GRID_SIZE; i++) 
+    {
+        for(int j=0; j<GRID_SIZE; j++){
+            u8 t = output[i*GRID_SIZE+j];
+            std::bitset<8> x(t);
+            std::cout << (int)t <<"\t";
+        }
+        std::cout << std::endl;
+    }
+
+
+    free(mx); free(my);
+    free(output);
+
+    return NULL;
+
+}
+
 const char *fhp_generate_grid()
 {
-    int width = 32, height = 32;
+    int width = 16, height = 16;
     long seed = 2;
     std::vector<velocity2> channels = \
     {
@@ -176,36 +262,20 @@ const char *fhp_generate_grid()
         velocity2{{0.5, -0.866025}}    
     };
 
-    dim3 block(8, 8);
-    dim3 grid(width/8, height/8);
+    // dim3 block(8, 8);
+    // dim3 grid(width/8, height/8);
 
     u8 buffer[width*height];
+    std::fill_n(buffer, width*height, 0);
+
+    buffer[5*width+5] = 1;
+
     double h_prob[] = {0.9, 0.9, 0.4, 0.3, 0.4, 0.9};
-    u8* d_buffer;           int size = width*height*sizeof(u8);
-    curandState *state;     int randSize = width*height*sizeof(curandState);
-    double *prob;           int probSz = 6 * sizeof(double);
 
-    // THIS IS BEING DONE TWICE, SOME WAY TO EXPOSE THIS FROM INITIALIZER?
-    // PROBABLY SECOND INITIALIZER?
-    cudaMalloc((void **) &d_buffer, size);
-    cudaMalloc((void **) &state, randSize);
-    cudaMalloc((void **) &prob, probSz);
+    fhp1_grid fhp = fhp_grid<u8, 6, 8, 8>(width, height, channels, seed, h_prob, buffer);
 
-    cudaMemcpy(prob, h_prob, probSz,
-        cudaMemcpyHostToDevice);
-
-    // Setup grid with kernel
-    setup_kernel<<<grid, block>>>(state, width, height, seed);
-    initialize_grid<<<grid, block>>>(d_buffer, prob, state, width);
-    gpuErrchk(cudaGetLastError( ));
-
-    cudaMemcpy(buffer, d_buffer, size,
+    cudaMemcpy(buffer, fhp.device_grid, width*height*sizeof(u8),
         cudaMemcpyDeviceToHost);
-
-    cudaFree(d_buffer);
-    cudaFree(state);
-    cudaFree(prob);
-
     gpuErrchk(cudaGetLastError( ));
 
     // const int GRID_SIZE = width;
@@ -215,11 +285,11 @@ const char *fhp_generate_grid()
     //     for(int j=0; j<GRID_SIZE; j++){
     //         u8 t = buffer[i*GRID_SIZE+j];
     //         // std::bitset<8> x(t);
-    //         std::cout << (int)t <<" ";
+    //         std::cout << (int)t <<"\t";
     //     }
     //     std::cout << std::endl;
     // }
-
+    // std::cout << "\n\n";
 
     return NULL;
 
@@ -231,7 +301,8 @@ const char *all_tests()
 
     mu_run_test(test_fhp_1step);
     mu_run_test(fhp_all1);
-    mu_run_test(fhp_generate_grid);
+    // mu_run_test(fhp_generate_grid);
+    // mu_run_test(fhp_all3);
 
     return NULL;
 }
