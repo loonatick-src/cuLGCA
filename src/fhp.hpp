@@ -153,3 +153,7 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
 __global__
 void 
 momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* ocpy, int width);
+
+__global__
+void 
+initialize_grid(u8* device_grid, double* probability, curandState *state, int width);

@@ -162,12 +162,76 @@ const char *fhp_all1()
 
 }
 
+const char *fhp_generate_grid()
+{
+    int width = 32, height = 32;
+    long seed = 2;
+    std::vector<velocity2> channels = \
+    {
+        velocity2{{1.0, 0.0}},
+        velocity2{{0.5, 0.866025}},
+        velocity2{{-0.5, 0.866025}},
+        velocity2{{-1.0, 0.0}},
+        velocity2{{-0.5, -0.866025}},
+        velocity2{{0.5, -0.866025}}    
+    };
+
+    dim3 block(8, 8);
+    dim3 grid(width/8, height/8);
+
+    u8 buffer[width*height];
+    double h_prob[] = {0.9, 0.9, 0.4, 0.3, 0.4, 0.9};
+    u8* d_buffer;           int size = width*height*sizeof(u8);
+    curandState *state;     int randSize = width*height*sizeof(curandState);
+    double *prob;           int probSz = 6 * sizeof(double);
+
+    // THIS IS BEING DONE TWICE, SOME WAY TO EXPOSE THIS FROM INITIALIZER?
+    // PROBABLY SECOND INITIALIZER?
+    cudaMalloc((void **) &d_buffer, size);
+    cudaMalloc((void **) &state, randSize);
+    cudaMalloc((void **) &prob, probSz);
+
+    cudaMemcpy(prob, h_prob, probSz,
+        cudaMemcpyHostToDevice);
+
+    // Setup grid with kernel
+    setup_kernel<<<grid, block>>>(state, width, height, seed);
+    initialize_grid<<<grid, block>>>(d_buffer, prob, state, width);
+    gpuErrchk(cudaGetLastError( ));
+
+    cudaMemcpy(buffer, d_buffer, size,
+        cudaMemcpyDeviceToHost);
+
+    cudaFree(d_buffer);
+    cudaFree(state);
+    cudaFree(prob);
+
+    gpuErrchk(cudaGetLastError( ));
+
+    // const int GRID_SIZE = width;
+    // std::cout << "\n\n";
+    // for(int i=0; i<GRID_SIZE; i++) 
+    // {
+    //     for(int j=0; j<GRID_SIZE; j++){
+    //         u8 t = buffer[i*GRID_SIZE+j];
+    //         // std::bitset<8> x(t);
+    //         std::cout << (int)t <<" ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+
+    return NULL;
+
+}
+
 const char *all_tests()
 {
     mu_suite_start();
 
     mu_run_test(test_fhp_1step);
     mu_run_test(fhp_all1);
+    mu_run_test(fhp_generate_grid);
 
     return NULL;
 }

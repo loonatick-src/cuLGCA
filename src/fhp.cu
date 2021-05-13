@@ -358,3 +358,28 @@ momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* o
     ocpy[row*width+col] = occupancy<u8, 6>(state);
     return;
 }
+
+__global__
+void 
+initialize_grid(u8* device_grid, double* probability, curandState *randstate, int width)
+{
+    const auto row = blockIdx.y * blockDim.y + threadIdx.y;
+    const auto col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    u8 state = 0; float rand;
+    curandState localstate = randstate[row*width+col];
+
+    #pragma unroll
+    for (int i=5; i>=0; i--) 
+    {
+        rand = curand_uniform(&localstate);
+        state |= (rand < probability[i]) ? 0 : 1;
+        state <<= 1;
+    }
+
+    state >>= 1;
+    device_grid[row*width + col] = state;
+
+    return;
+}
+
