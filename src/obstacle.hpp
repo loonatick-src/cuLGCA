@@ -81,7 +81,7 @@ initialize_cylindrical_obstacle(word *buffer, const size_t width, const size_t h
     const size_t mem_sz = width * height * sizeof(word);
    
     word *device_buffer;
-    cudaMalloc((void **) device_buffer, mem_sz);
+    cudaMalloc((void **) &device_buffer, mem_sz);
     gpuErrchk( cudaGetLastError() );
     cudaMemcpy(device_buffer, buffer, mem_sz, cudaMemcpyHostToDevice);
     gpuErrchk( cudaGetLastError() );
