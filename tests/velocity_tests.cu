@@ -1,19 +1,11 @@
 #include "dbg.h"
+#include "helper_functions.hpp"
 #include "minunit.h"
 #include "velocity.hpp"
 #include <array>
 #include <cmath>
 
 typedef std::array<double, 2> v2;
-
-template <typename numeric_type>
-inline numeric_type
-sq(numeric_type v)
-{
-    return v* v;
-}
-
-const auto sqd = sq<double>;
 
 const char *test_velocity_init()
 {

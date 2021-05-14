@@ -1,5 +1,6 @@
 #include "velocity.hpp"
 #include "helper_types.hpp"
+#include "helper_functions.hpp"
 #include "init.hpp"
 #include "minunit.h"
 #include "dbg.h"
@@ -9,12 +10,6 @@
 #include <cmath>
 #include <vector>
 
-
-double
-flerror(double of, double against)
-{
-    return fabs(of - against); 
-}
 
 const char *test_velocity_gen()
 {

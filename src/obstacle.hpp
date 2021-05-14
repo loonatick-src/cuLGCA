@@ -22,8 +22,8 @@
  */
 constexpr double u1_x {1.0};
 constexpr double u1_y {0.0}; 
-constexpr double u2_x {0.5};
-constexpr double u2_y {0.8660254037844386};
+constexpr double u2_x {-0.5};
+constexpr double u2_y {-0.8660254037844386};
 // unfortunately the cmath functions do not return constexpr
 // constexpr double u2_x {-cos(PI/3.0)};
 // constexpr double u2_y {-sin(PI/3.0)};
