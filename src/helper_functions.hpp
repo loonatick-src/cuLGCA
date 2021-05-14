@@ -1,7 +1,7 @@
 #pragma once
 
 inline
-auto
+const dim3
 make_tiles(const dim3& block_config, size_t width, size_t height)
 {
     const size_t grid_width = (size_t) ceil( ((double)width/block_config.x));

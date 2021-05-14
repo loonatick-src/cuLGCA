@@ -3,6 +3,7 @@
 #include "helper_types.hpp"
 #include "dbg.h"
 #include "helper_functions.hpp"
+#include <cassert>
 #include <cmath>
 
 #define BLOCK_WIDTH 16;
@@ -38,31 +39,6 @@ lattice_vector_length(const size_t d_1, const size_t d_2, const double b1_x, con
     return (sqrt(rv_x*rv_x + rv_y*rv_y));
 }
 
-
-template <typename word>
-auto
-initialize_cylindrical_obstacle(word *buffer, const size_t width, const size_t height,
-        size_t centre_x, size_t centre_y, double radius)
-{
-    check_mem(buffer); 
-    const dim3 block_config(BLOCK_HEIGHT, BLOCK_WIDTH);
-    const dim3 grid_config {make_tiles(block_config, width, height)};
-    const size_t mem_sz = width * height * sizeof(word);
-   
-    word *device_buffer;
-    cudaMemcpy((void **) &device_buffer, buffer, mem_sz, cudaMemcpyHostToDevice);
-
-    init_cyl_obst_kernel<word><<<grid_config, block_config>>>(device_buffer, width, height,
-            centre_x, centre_y, radius);
-
-    cudaMemcpy(buffer, device_buffer, mem_sz, cudaMemcpyDeviceToHost);
-    cudaFree(device_buffer);
-    return 0;
-error:
-    return 1;
-}
-
-
 template <typename word>
 __global__
 void
@@ -82,3 +58,29 @@ init_cyl_obst_kernel(word *buffer, size_t width, size_t height,
 
     return;
 }
+
+template <typename word>
+auto
+initialize_cylindrical_obstacle(word *buffer, const size_t width, const size_t height,
+        size_t centre_x, size_t centre_y, double radius)
+{
+    assert(buffer != nullptr);
+    const dim3 block_config(16, 16);
+    const dim3 grid_config = make_tiles(block_config, width, height);
+    const size_t mem_sz = width * height * sizeof(word);
+   
+    word *device_buffer;
+    cudaMemcpy((void **) &device_buffer, buffer, mem_sz, cudaMemcpyHostToDevice);
+
+    init_cyl_obst_kernel<word><<<grid_config, block_config>>>(device_buffer, width, height,
+            centre_x, centre_y, radius);
+
+    cudaMemcpy(buffer, device_buffer, mem_sz, cudaMemcpyDeviceToHost);
+    cudaFree(device_buffer);
+    return 0;
+error:
+    return 1;
+}
+
+
+
