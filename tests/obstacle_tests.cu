@@ -41,7 +41,7 @@ const char *all_tests()
 {
     mu_suite_start();
     mu_run_test(test_lattice_vector_length);
-    // mu_run_test(test_obstacle_creation);
+    mu_run_test(test_obstacle_creation);
     return NULL;
 }
 
