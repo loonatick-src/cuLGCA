@@ -7,6 +7,10 @@
 
 #define BLOCK_WIDTH 16;
 #define BLOCK_HEIGHT 16;
+#ifdef PI
+#undef PI
+#endif
+#define PI 3.141592653589793
 
 /*      0       x
  *      ------->
@@ -17,11 +21,14 @@
  */
 constexpr double u1_x {1.0};
 constexpr double u1_y {0.0}; 
-constexpr double u2_x {-cos(M_PI/3.0)};
-constexpr double u2_y {-sin(M_PI/3.0)};
+constexpr double u2_x {0.5};
+constexpr double u2_y {0.8660254037844386};
+// unfortunately the cmath functions do not return constexpr
+// constexpr double u2_x {-cos(PI/3.0)};
+// constexpr double u2_y {-sin(PI/3.0)};
 
 
-__device__
+__host__ __device__
 double
 lattice_vector_length(const size_t d_1, const size_t d_2, const double b1_x, const double b1_y,
                       const double b2_x, const double b2_y)
