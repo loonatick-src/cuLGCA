@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 inline
 const dim3
@@ -28,3 +29,32 @@ sq(numeric_type v)
 const auto sqd = sq<double>;
 
 
+template<typename word>
+void
+print_grid(word *grid, size_t width, size_t height)
+{
+    for (size_t row = 0; row < height; row++)
+    {
+        for (size_t col = 0; col < width-1; col++)
+        {
+            std::cout << grid[row * width + col];
+        }
+        std::cout << grid[row * width + width-1] << '\n';
+    }
+}
+
+
+template <typename numeric_type>
+constexpr auto
+max(constexpr numeric_type a, constexpr numeric_type b)->decltype(true ? a : b)
+{
+    return (a > b ? a : b); 
+}
+
+
+template <typename numeric_type>
+constexpr auto
+min(constexpr numeric_type a, constexpr numeric_type b)->decltype(true ? a : b)
+{
+    return (a < b ? a : b); 
+}
