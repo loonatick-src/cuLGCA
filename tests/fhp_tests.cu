@@ -162,6 +162,50 @@ const char *fhp_all1()
 
 }
 
+const char *fhp_stream_test()
+{
+    int width = 16, height = 16;
+    long seed = 1234, seed1 = 4321;
+    std::vector<velocity2> channels = \
+    {
+        velocity2{{1.0, 0.0}},
+        velocity2{{0.5, 0.866025}},
+        velocity2{{-0.5, 0.866025}},
+        velocity2{{-1.0, 0.0}},
+        velocity2{{-0.5, -0.866025}},
+        velocity2{{0.5, -0.866025}}    
+    };
+
+    u8 buffer_0[width*height];
+    u8 buffer_1[width*height];
+    std::fill_n(buffer_0, width*height, 1);
+    std::fill_n(buffer_1, width*height, 3);
+
+    fhp1_grid fhp(width, height, channels, buffer_0, seed);
+
+    std::vector<fhp1_grid> vec = {
+        fhp1_grid(width, height, channels, buffer_0, seed),
+        fhp1_grid(width, height, channels, buffer_1, seed1),
+    };
+    gpuErrchk(cudaGetLastError());
+
+    launch_vectors(vec, 1);
+
+    vec[0].get_output(buffer_0);
+    vec[1].get_output(buffer_1);
+
+    for (int i=0; i<width*height; i++){
+        mu_assert(1 == buffer_0[i], "Parallel Launch first fhp failed" );
+    }
+
+    for (int i=0; i<width*height; i++){
+        mu_assert(3 == buffer_1[i], "Parallel Launch second fhp failed" );
+    }
+
+    return NULL;
+
+}
+
 // NOT A TEST, USED FOR CHECKING EVOLUTION OUTPUT
 const char *fhp_all3()
 {
@@ -301,6 +345,7 @@ const char *all_tests()
 
     mu_run_test(test_fhp_1step);
     mu_run_test(fhp_all1);
+    mu_run_test(fhp_stream_test);
     // mu_run_test(fhp_generate_grid);
     // mu_run_test(fhp_all3);
 

@@ -387,3 +387,24 @@ initialize_grid(u8* device_grid, u8* device_obstacle, double* probability,
     return;
 }
 
+void
+launch_vectors (const std::vector<fhp1_grid> &fhp_vector, int timesteps)
+{
+    dim3 block(8, 8);
+
+    for (int i=0; i<fhp_vector.size(); i++)
+    {
+        const fhp1_grid &fhp = fhp_vector[i];
+        dim3 grid(fhp.width/8, fhp.height/8);
+        // fprintf(stderr, "element %d\n", i);
+        cudaStreamSynchronize(fhp.stream);
+        evolve<<<grid, block>>>(fhp.device_grid, fhp.state, 
+            fhp.width, fhp.height, timesteps);
+        cudaDeviceSynchronize();
+        gpuErrchk(cudaGetLastError());
+    }
+
+    // Block till all invocations are complete
+    cudaDeviceSynchronize();
+    gpuErrchk(cudaGetLastError());
+}

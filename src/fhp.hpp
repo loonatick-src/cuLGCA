@@ -28,6 +28,7 @@ struct fhp_grid
     double *mx, *my;
     word* ocpy;
     double *probability = nullptr;
+    cudaStream_t stream;
 
     const size_t width, height;
     long seed;
@@ -51,6 +52,8 @@ struct fhp_grid
             temp[2*i] = channels[i][0]; 
             temp[2*i+1] = channels[i][1];
         }
+        gpuErrchk(cudaStreamCreate ( &stream ) );
+
 
         cudaMalloc((void **) &device_channels, channel_mem_sz);
         // ALLOW OPTION FOR DEVICE TO DEVICE COPY?
@@ -63,17 +66,21 @@ struct fhp_grid
         // cudaMalloc((void **) &probability, channel_count*sizeof(double));
 
         // ALLOW OPTION FOR DEVICE TO DEVICE COPY?
+        gpuErrchk(
         cudaMemcpy(device_grid, buffer, mem_sz,
-                cudaMemcpyHostToDevice);
+                cudaMemcpyHostToDevice)
+        );
+        gpuErrchk(
         cudaMemcpy(device_channels, temp, channel_mem_sz,
-                cudaMemcpyHostToDevice);
+                cudaMemcpyHostToDevice)
+        );
         // cudaMemcpy(probability, probs, prob_sz,
         //         cudaMemcpyHostToDevice);
 
         // Setup curand states
         dim3 block(BLOCK_WIDTH, BLOCK_HEIGHT);
         dim3 grid(width/BLOCK_WIDTH, height/BLOCK_HEIGHT);
-        setup_kernel<<<grid, block>>>(state, width, height, seed);
+        setup_kernel<<<grid, block, 0, stream>>>(state, width, height, seed);
         delete[] temp;
 
         // word* output = (word*) malloc(width*height*sizeof(word));
@@ -81,6 +88,7 @@ struct fhp_grid
         //         cudaMemcpyDeviceToHost);
 
         setup_constants(this);
+        gpuErrchk(cudaGetLastError());
         
         // const int GRID_SIZE = 8;
         // std::cout<<"In Initializer:\n";
@@ -117,6 +125,8 @@ struct fhp_grid
         }
         word* dev_obstacle;
 
+        gpuErrchk(cudaStreamCreate ( &stream ) );
+
         cudaMalloc((void **) &device_channels, channel_mem_sz);
         cudaMalloc((void **) &device_grid, mem_sz);
         cudaMalloc((void **) &ocpy, mem_sz);
@@ -143,9 +153,10 @@ struct fhp_grid
             // Setup curand states
         dim3 block(BLOCK_WIDTH, BLOCK_HEIGHT);
         dim3 grid(width/BLOCK_WIDTH, height/BLOCK_HEIGHT);
-        setup_kernel<<<grid, block>>>(state, width, height, seed);
+        setup_kernel<<<grid, block, 0, stream>>>(state, width, height, seed);
 
-        initialize_grid<<<grid, block>>>(device_grid, dev_obstacle, probability, state, width);
+        initialize_grid<<<grid, block, 0, stream>>>(device_grid, dev_obstacle, 
+            probability, state, width);
         cudaDeviceSynchronize();
         gpuErrchk(cudaGetLastError( ));
 
@@ -154,6 +165,7 @@ struct fhp_grid
         cudaFree(dev_obstacle);
 
         setup_constants(this);
+        gpuErrchk(cudaGetLastError());
 
     }
 
@@ -166,6 +178,8 @@ struct fhp_grid
         cudaFree(state);
         if (probability != nullptr) cudaFree(probability);
         cudaFree(device_channels);
+
+        // gpuErrchk(cudaStreamDestroy(stream));
     }
 
     template <size_t timesteps>
@@ -230,3 +244,6 @@ __global__
 void 
 initialize_grid(u8* device_grid, u8* device_obstacle, double* probability, 
     curandState *randstate, int width);
+
+void
+launch_vectors (const std::vector<fhp1_grid> &fhp_vector, int timesteps);
