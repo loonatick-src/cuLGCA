@@ -381,7 +381,7 @@ initialize_grid(u8* device_grid, u8* device_obstacle, double* probability,
     }
 
     state >>= 1;
-    state |= (device_obstacle[row*width+col]&0b1)<<6;
+    state = (device_obstacle[row*width+col]&0b1) ? 1<<6 : state;
     device_grid[row*width + col] = state;
 
     return;

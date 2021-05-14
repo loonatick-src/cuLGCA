@@ -162,10 +162,9 @@ const char *fhp_all1()
 
 }
 
+// NOT A TEST, USED FOR CHECKING EVOLUTION OUTPUT
 const char *fhp_all3()
 {
-    const auto threshold = 0.0001l;
-
     int width = 16, height = 16;
     long seed = 1234;
     std::vector<velocity2> channels = \
@@ -248,6 +247,7 @@ const char *fhp_all3()
 
 }
 
+// NOT A TEST, USED FOR CHECKING RANDOM INITIALIZER
 const char *fhp_generate_grid()
 {
     int width = 16, height = 16;
@@ -278,18 +278,18 @@ const char *fhp_generate_grid()
         cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError( ));
 
-    // const int GRID_SIZE = width;
-    // std::cout << "\n\n";
-    // for(int i=0; i<GRID_SIZE; i++) 
-    // {
-    //     for(int j=0; j<GRID_SIZE; j++){
-    //         u8 t = buffer[i*GRID_SIZE+j];
-    //         // std::bitset<8> x(t);
-    //         std::cout << (int)t <<"\t";
-    //     }
-    //     std::cout << std::endl;
-    // }
-    // std::cout << "\n\n";
+    const int GRID_SIZE = width;
+    std::cout << "\n\n";
+    for(int i=0; i<GRID_SIZE; i++) 
+    {
+        for(int j=0; j<GRID_SIZE; j++){
+            u8 t = buffer[i*GRID_SIZE+j];
+            // std::bitset<8> x(t);
+            std::cout << (int)t <<"\t";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "\n\n";
 
     return NULL;
 
