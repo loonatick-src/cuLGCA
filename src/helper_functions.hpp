@@ -45,16 +45,16 @@ print_grid(word *grid, size_t width, size_t height)
 
 
 template <typename numeric_type>
-constexpr auto
-max(constexpr numeric_type a, constexpr numeric_type b)->decltype(true ? a : b)
+constexpr numeric_type
+max(numeric_type a, numeric_type b)
 {
     return (a > b ? a : b); 
 }
 
 
 template <typename numeric_type>
-constexpr auto
-min(constexpr numeric_type a, constexpr numeric_type b)->decltype(true ? a : b)
+constexpr numeric_type
+min(numeric_type a, numeric_type b)
 {
     return (a < b ? a : b); 
 }
