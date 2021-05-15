@@ -6,8 +6,6 @@
 #include <cassert>
 #include <cmath>
 
-#define BLOCK_WIDTH 16;
-#define BLOCK_HEIGHT 16;
 #ifdef PI
 #undef PI
 #endif

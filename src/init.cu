@@ -39,8 +39,8 @@ generate_velocities2(velocity2 base_velocity)
 }
 
 
-auto
-generate_fhp1_velocities2(velocity2 base_velocity)
+std::vector<velocity2>
+generate_fhp1_velocities(velocity2 base_velocity)
 {
     return generate_velocities2<6, 1, 1>(base_velocity);
 }

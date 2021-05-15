@@ -1,4 +1,4 @@
-#include "dbg.hpp"
+#include "dbg.h"
 #include "helper_functions.hpp"
 #include "helper_types.hpp"
 #include "obstacle.hpp"
@@ -14,15 +14,17 @@ constexpr std::array<double, 2> base_velocity_vec { 1.0, 0.0 };
 
 int main(int argc, char *argv[])
 {
-    dbg_check(argc > 3,
-            "Usage: ./%s <width> <height> <obst-radius>",
-            argv[0]);
+    if (argc < 4)
+    {
+        fprintf(stderr, "Usage: %s <width> <height> <obst-radius>", argv[0]);
+        exit(1);
+    }
 
     // reading width, height and radius of obstacle
     // from command line arguments
     size_t width { atol(argv[1]) }, height { atol(argv[2]) };
     double radius;
-    sprintf(argv[3], "%lf", &radius);
+    sscanf(argv[3], "%lf", &radius);
 
     const auto centre_x = width  / 2;
     const auto centre_y = height / 2;
@@ -30,7 +32,7 @@ int main(int argc, char *argv[])
 
     // generate channel metadata (a.k.a velocities)
     const auto base_v = velocity2(base_velocity_vec);
-    const auto ch generate_fhp1_velocities(base_v);
+    const auto ch = generate_fhp1_velocities(base_v);
 
     long seed = 3;
 
@@ -60,8 +62,4 @@ int main(int argc, char *argv[])
     // TODO print output 
     delete[] buffer;
     return 0;
-error:
-    if (buffer)
-        delete[] buffer;
-    return 1;
 }
