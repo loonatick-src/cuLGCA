@@ -13,6 +13,7 @@ __device__
 word
 stream(int local_row, int local_col, word sdm[BLOCK_WIDTH+2][BLOCK_HEIGHT+2])
 {
+    /// STREAMING OPERATOR
     u8 state = 0 | (1<<6 & (sdm[local_row][local_col]));
     u8 bit = 0x1;
 
@@ -38,6 +39,7 @@ __device__
 void
 fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::collide(curandState *localstate, word *state)
 {
+    /// COLLISION OPERATOR
     word size = d_eq_class_size[*state];
     word base_index = d_state_to_eq[*state];
 
@@ -57,6 +59,7 @@ __device__
 double
 momentum_x(word state, double *device_channels)
 {
+    // x-component OF MOMENTUM
     double rv = 0.0l; 
     u8 bit = 0x1;
     for (size_t shift = 0; shift < channel_count; shift++)
@@ -76,6 +79,7 @@ __device__
 double
 momentum_y(word state, double *device_channels)
 {
+    // y-component OF MOMENTUM
     double rv = 0.0l; 
     const word bit = 0x1;
     for (size_t shift = 0; shift < channel_count; shift++)
@@ -92,14 +96,22 @@ momentum_y(word state, double *device_channels)
 template <typename word, u8 channel_count>
 __device__
 word
-occupancy(word state)
+occupancy(const word state)
 {
+    // CALCULATE NODE OCCUPANCY
     word count = 0;
-    while (state)
+    auto temp_state = state;
+
+    // count number of set bits
+    while (temp_state)
     {
-        state &= (state-1);
+        temp_state &= (temp_state-1);
         count++;
     }
+
+    // TODO: generalize for multiple obstacle bits
+    // if the node is an obstacle node
+    count = ((state >> channel_count) & 0b1 == 1 ? count - 1 : count)
     return count;
 }
 
@@ -127,16 +139,12 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
     const auto local_col = threadIdx.x+1;
     const auto row = blockIdx.y * blockDim.y + threadIdx.y;
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;
+    const auto global_index = row * width + col;
     curandState localstate = randstate[row*width + col];
+    double px = 0, py = 0;       // momentum components
+    double local_occupancy = 0;  // local occupancy
+
     __syncthreads();
-
-    mx[row*width + col] = 0;
-    my[row*width + col] = 0;
-
-    ocpy[row*width+col] = 0;
-    __syncthreads();
-
-
     for (size_t t = 0; t < timesteps; t++)
     {
 
@@ -152,8 +160,6 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
         size_t pad_row = row, pad_col = col;
         size_t local_pad_row = local_row, local_pad_col = local_col;
 
-        // printf("row %d col %d: lr %d lbx %d\n", row, col, local_row, lbound_x);
-        // NSight is going to roast tf out of this kernel
         if (lbound_y)
         {
             pad_row = (row == 0) ? height-1 : row-1;
@@ -185,14 +191,10 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
         }
         __syncthreads();
 
+
         // 2. Streaming
         u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
-        // if (row == 0 && col == 2){
-        //     printf("row %d, col %d: state: %d\n", row, col, state);
-        //     printf("%d %d %d\n", sdm[local_row][local_col-1], sdm[local_row+1][local_col], sdm[local_row+1][local_col+1]);
-        //     printf("%d %d %d\n", sdm[local_row][local_col+1], sdm[local_row-1][local_col], sdm[local_row-1][local_col-1]);
-        // }
-
+        
         // 3. Collision
         u8 size = d_eq_class_size[state];
         u8 base_index = d_state_to_eq[state];
@@ -201,23 +203,22 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
         float rand = curand_uniform(&localstate);
         rand *= size-0.00001;
         u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
-
         state = d_eq_classes[base_index + random_index];
 
+        // writing evolved state to global memory
         device_grid[row*width + col] = state;
-        // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
 
-        // Add to momentum and occupancy matrices
-        mx[row*width + col] = mx[row*width + col] + momentum_x<u8, 6>(state, device_channels);
-        my[row*width + col] = my[row*width + col] + momentum_y<u8, 6>(state, device_channels);
+        // increment local and global momentum for averaging
+        px += momentum_x<u8, 6>(state, device_channels);
+        py += momentum_y<u8, 6>(state, device_channels);
     
-        ocpy[row*width+col] = ocpy[row*width+col] + occupancy<u8, 6>(state);
+        local_occupancy += (double) occupancy<u8, 6>(state);
     }
+    __syncthreads();
+    mx[global_index] = px / timesteps;
+    my[global_index] = py / timesteps;
+    ocpy[global_index] = ocpy[row*width+col] / timesteps;
 
-    mx[row*width + col] = mx[row*width + col] / timesteps;
-    my[row*width + col] = my[row*width + col] / timesteps;
-
-    ocpy[row*width+col] = ocpy[row*width+col] / timesteps;
     return;
 }
 
