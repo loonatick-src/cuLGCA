@@ -14,7 +14,7 @@ TARGET=build/libfhp.a
 
 all: $(TARGET) tests # $(SO_TARGET)
 
-dev: CFLAGS = -g  -Isrc $(OPTFLAGS)
+dev: CFLAGS = -G  -Isrc $(OPTFLAGS)
 dev: all 
 
 src/%.o: src/%.cu src/*.hpp

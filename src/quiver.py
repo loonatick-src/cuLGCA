@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-f= open('graph_inp.txt')
-file=f.read()
-data=file.split('[')
+# f= open('graph_inp.txt')
+# file=f.read()
+# data=file.split('[')
 #print(data)
 x,y = np.meshgrid(np.arange(0, 32, 1), np.arange(31, -1, -1))
 u=[

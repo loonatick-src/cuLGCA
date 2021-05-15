@@ -26,6 +26,8 @@ int main(int argc, char *argv[])
     double radius;
     sscanf(argv[3], "%lf", &radius);
 
+    printf("width: %ld, height: %ld, radius %lf\n", width, height, radius); 
+
     const auto centre_x = width  / 2;
     const auto centre_y = height / 2;
     const auto grid_sz = width * height;
@@ -34,7 +36,7 @@ int main(int argc, char *argv[])
     const auto base_v = velocity2(base_velocity_vec);
     const auto ch = generate_fhp1_velocities(base_v);
 
-    long seed = 3;
+    long seed = 1000;
 
     // buffer for storing obstacle information
     u8 *buffer = new u8 [width * height];
@@ -43,7 +45,7 @@ int main(int argc, char *argv[])
     initialize_cylindrical_obstacle<u8>(buffer, width, height, centre_x, centre_y, radius);
 
     // channel-wise occupancy probabilities for initialization
-    double h_prob[] = { 0.9, 0.9, 0.4, 0.3, 0.4, 0.9 };
+    double h_prob[] = { 0.8, 0.7, 0.4, 0.1, 0.4, 0.7 };
 
     const dim3 block_config(8, 8);
     const dim3 grid_config = make_tiles(block_config, width, height);
@@ -54,10 +56,6 @@ int main(int argc, char *argv[])
     evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000,
         fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     cudaDeviceSynchronize();
-    gpuErrchk(cudaGetLastError());
-
-    // copying back to buffer
-    cudaMemcpy(buffer, fhp.device_grid,  grid_sz * sizeof(u8), cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError());
 
     double *occup = new double[width*height];

@@ -74,7 +74,7 @@ initialize_cylindrical_obstacle(word *buffer, const size_t width, const size_t h
         size_t centre_x, size_t centre_y, double radius)
 {
     assert(buffer != nullptr);
-    const dim3 block_config(16, 16);
+    const dim3 block_config(8, 8);
     const dim3 grid_config = make_tiles(block_config, width, height);
     const size_t mem_sz = width * height * sizeof(word);
    

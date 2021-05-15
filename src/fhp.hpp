@@ -17,7 +17,7 @@ __constant__ u8 d_eq_classes[128];
 
 
 __global__
-void setup_kernel(curandState *state, size_t width, size_t height, long seed=1234);
+void setup_kernel(curandState_t *state, size_t width, size_t height, long seed=1234);
 
 
 template <typename word, u8 channel_count, size_t BLOCK_WIDTH, size_t BLOCK_HEIGHT = BLOCK_WIDTH>
@@ -25,7 +25,7 @@ struct fhp_grid
 {
     word *device_grid;
     double *device_channels;
-    curandState *state;
+    curandState_t *state;
     double *mx, *my;
     double* ocpy;
     double *probability = nullptr;
@@ -59,7 +59,8 @@ struct fhp_grid
         cudaMalloc((void **) &ocpy, mem_sz);
         cudaMalloc((void **) &mx, grid_sz*sizeof(double));
         cudaMalloc((void **) &my, grid_sz*sizeof(double));
-        cudaMalloc((void **) &state, width*height*sizeof(curandState));
+        cudaMalloc((void **) &state, width*height*sizeof(curandState_t));
+        fprintf(stderr, "start addr: %p, bytes: %ld", state, width*height*sizeof(curandState_t));
         // If we already have grid, do we need to store this?
         // cudaMalloc((void **) &probability, channel_count*sizeof(double));
 
@@ -123,7 +124,7 @@ struct fhp_grid
         cudaMalloc((void **) &ocpy, grid_sz*sizeof(double));
         cudaMalloc((void **) &mx, grid_sz*sizeof(double));
         cudaMalloc((void **) &my, grid_sz*sizeof(double));
-        cudaMalloc((void **) &state, width*height*sizeof(curandState));
+        cudaMalloc((void **) &state, width*height*sizeof(curandState_t));
         cudaMalloc((void **) &probability, channel_count*sizeof(double));
 
         cudaMalloc((void **) &dev_obstacle, grid_sz*sizeof(word));
@@ -173,7 +174,7 @@ struct fhp_grid
     void start_evolution();
     
     __device__
-    void collide(curandState *localstate, word *state);
+    void collide(curandState_t *localstate, word *state);
     
         
     velocity2
@@ -197,7 +198,7 @@ struct fhp_grid
                 cudaMemcpyDeviceToHost);
         cudaMemcpy(p_y, my, grid_sz*sizeof(double),
                 cudaMemcpyDeviceToHost);
-        cudaMemcpy(o, ocpy, mem_sz,
+        cudaMemcpy(o, ocpy, grid_sz*sizeof(double),
                 cudaMemcpyDeviceToHost);
         
         return;
@@ -208,8 +209,10 @@ struct fhp_grid
     {
         for(int i=0; i<height; i++)
         {
-            for(int j=0; j<width; j++)
+            int j;
+            for(j=0; j<width-1; j++)
                 stream << (int)buf[i*width + j] << ", " ;
+            stream << (int)buf[i*width + j];
             stream << "\n";
         }
         stream << "\n";
@@ -220,8 +223,10 @@ struct fhp_grid
     {
         for(int i=0; i<height; i++)
         {
-            for(int j=0; j<width; j++)
+            int j;
+            for(j=0; j<width-1; j++)
                 stream << buf[i*width + j] << ", " ;
+            stream << buf[i*width + j];
             stream << "\n";
         }
         stream << "\n";
@@ -256,7 +261,7 @@ auto momentum_y(word state, double *device_channels)->double;
 // kernels
 __global__
 void
-evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps, 
+evolve(u8* device_grid, curandState_t* randstate, int width, int height, int timesteps, 
     double* device_channels, double* mx, double *my, double* ocpy);
 
 __global__
@@ -266,4 +271,4 @@ momentum(u8* device_grid, double* device_channels, double* mx, double *my, doubl
 __global__
 void 
 initialize_grid(u8* device_grid, u8* device_obstacle, double* probability, 
-    curandState *randstate, int width);
+    curandState_t *randstate, int width);
