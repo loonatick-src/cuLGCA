@@ -48,7 +48,8 @@ const char *test_fhp_1step()
 
     dim3 block(8, 8);
     dim3 grid(width/8, height/8);
-    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1);
+    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1,
+        fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError( ));
 
@@ -117,7 +118,8 @@ const char *fhp_all1()
 
     dim3 block(8, 8);
     dim3 grid(width/8, height/8);
-    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 3);
+    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 3,
+        fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     momentum<<<grid, block>>>(fhp.device_grid, fhp.device_channels, 
         fhp.mx, fhp.my, fhp.ocpy, fhp.width);
 
@@ -202,7 +204,8 @@ const char *fhp_all3()
 
     dim3 block(8, 8);
     dim3 grid(width/8, height/8);
-    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000);
+    evolve<<<grid, block>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000,
+        fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     momentum<<<grid, block>>>(fhp.device_grid, fhp.device_channels, 
         fhp.mx, fhp.my, fhp.ocpy, fhp.width);
 

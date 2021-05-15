@@ -51,12 +51,8 @@ int main(int argc, char *argv[])
     // initializing grid
     fhp1_grid fhp(width, height, ch, seed, h_prob, buffer);
     // time evolution
-    evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000);
-    cudaDeviceSynchronize();
-    gpuErrchk(cudaGetLastError());
-
-    momentum<<<grid_config, block_config>>>(fhp.device_grid, fhp.device_channels, 
-        fhp.mx, fhp.my, fhp.ocpy, fhp.width);
+    evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000,
+        fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError());
 
@@ -64,7 +60,7 @@ int main(int argc, char *argv[])
     cudaMemcpy(buffer, fhp.device_grid,  grid_sz * sizeof(u8), cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError());
 
-    u8 *occup = new u8[width*height];
+    double *occup = new double[width*height];
     double *mx = new double[width*height];
     double *my = new double[width*height];
 

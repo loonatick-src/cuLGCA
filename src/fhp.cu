@@ -119,7 +119,8 @@ setup_kernel(curandState *state, size_t width, size_t height, long seed)
 
 __global__
 void
-evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps)
+evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps, 
+    double* device_channels, double* mx, double *my, double* ocpy)
 {
     __shared__ u8 sdm[default_bh+2][default_bw+2];
     const auto local_row = threadIdx.y+1;
@@ -128,6 +129,13 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;
     curandState localstate = randstate[row*width + col];
     __syncthreads();
+
+    mx[row*width + col] = 0;
+    my[row*width + col] = 0;
+
+    ocpy[row*width+col] = 0;
+    __syncthreads();
+
 
     for (size_t t = 0; t < timesteps; t++)
     {
@@ -198,7 +206,18 @@ evolve(u8* device_grid, curandState* randstate, int width, int height, int times
 
         device_grid[row*width + col] = state;
         // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
+
+        // Add to momentum and occupancy matrices
+        mx[row*width + col] = mx[row*width + col] + momentum_x<u8, 6>(state, device_channels);
+        my[row*width + col] = my[row*width + col] + momentum_y<u8, 6>(state, device_channels);
+    
+        ocpy[row*width+col] = ocpy[row*width+col] + occupancy<u8, 6>(state);
     }
+
+    mx[row*width + col] = mx[row*width + col] / timesteps;
+    my[row*width + col] = my[row*width + col] / timesteps;
+
+    ocpy[row*width+col] = ocpy[row*width+col] / timesteps;
     return;
 }
 
@@ -347,7 +366,7 @@ setup_constants(fhp1_grid *grid)
 
 __global__
 void 
-momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* ocpy, int width)
+momentum(u8* device_grid, double* device_channels, double* mx, double *my, double* ocpy, int width)
 {
     const auto row = blockIdx.y * blockDim.y + threadIdx.y;
     const auto col = blockIdx.x * blockDim.x + threadIdx.x;

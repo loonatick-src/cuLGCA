@@ -27,7 +27,7 @@ struct fhp_grid
     double *device_channels;
     curandState *state;
     double *mx, *my;
-    word* ocpy;
+    double* ocpy;
     double *probability = nullptr;
 
     const size_t width, height;
@@ -120,7 +120,7 @@ struct fhp_grid
 
         cudaMalloc((void **) &device_channels, channel_mem_sz);
         cudaMalloc((void **) &device_grid, mem_sz);
-        cudaMalloc((void **) &ocpy, mem_sz);
+        cudaMalloc((void **) &ocpy, grid_sz*sizeof(double));
         cudaMalloc((void **) &mx, grid_sz*sizeof(double));
         cudaMalloc((void **) &my, grid_sz*sizeof(double));
         cudaMalloc((void **) &state, width*height*sizeof(curandState));
@@ -183,7 +183,7 @@ struct fhp_grid
     number_of_particles(word n);
 
     void 
-    get_output(word* output, double *p_x, double* p_y, word* o)
+    get_output(word* output, double *p_x, double* p_y, double* o)
     {
         assert(output != NULL);
         assert(p_x != NULL);
@@ -256,11 +256,12 @@ auto momentum_y(word state, double *device_channels)->double;
 // kernels
 __global__
 void
-evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps);
+evolve(u8* device_grid, curandState* randstate, int width, int height, int timesteps, 
+    double* device_channels, double* mx, double *my, double* ocpy);
 
 __global__
 void 
-momentum(u8* device_grid, double* device_channels, double* mx, double *my, u8* ocpy, int width);
+momentum(u8* device_grid, double* device_channels, double* mx, double *my, double* ocpy, int width);
 
 __global__
 void 
