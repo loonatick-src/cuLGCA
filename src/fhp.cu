@@ -132,15 +132,8 @@ evolve(u8* device_grid, curandState_t* randstate, int width, int height, int tim
     curandState_t localstate = randstate[row*width + col];
     __syncthreads();
 
-    mx[row*width + col] = 0;
-    my[row*width + col] = 0;
-
-    ocpy[row*width+col] = 0;
-    if (row == 0 && col == 0)
-        {
-            double m = mx[row*width + col];
-            printf("mx: %f\n", m);
-        }
+    double px = 0, py = 0;
+    double ocp = 0;
     __syncthreads();
 
 
@@ -200,6 +193,8 @@ evolve(u8* device_grid, curandState_t* randstate, int width, int height, int tim
         //     printf("%d %d %d\n", sdm[local_row][local_col+1], sdm[local_row-1][local_col], sdm[local_row-1][local_col-1]);
         // }
 
+        // printf("[%d, %d]: state %d\n", row, col, state);
+        __syncthreads();
         // 3. Collision
         u8 size = d_eq_class_size[state];
         u8 base_index = d_state_to_eq[state];
@@ -212,34 +207,21 @@ evolve(u8* device_grid, curandState_t* randstate, int width, int height, int tim
         state = d_eq_classes[base_index + random_index];
 
         device_grid[row*width + col] = state;
-        // printf("row %d, col %d: collide: %d\n", row, col, device_grid[row*width + col]);
-
-        if (row == 0 && col == 0)
-        {
-            double m = mx[row*width + col];
-            double mout = momentum_x<u8, 6>(state, device_channels);
-            printf("mx: %f   %f\n", m, mout);
-        }
+        // printf("row %d, col %d: collide: %d\n", row, col, state);
 
         // Add to momentum and occupancy matrices
-        double localm = mx[row*width + col];
-        mx[row*width + col] = localm + 2.8l;
-        my[row*width + col] = my[row*width + col] + momentum_y<u8, 6>(state, device_channels);
+        px += momentum_x<u8, 6>(state, device_channels);
+        py +=  momentum_y<u8, 6>(state, device_channels);
     
-        ocpy[row*width+col] = ocpy[row*width+col] + occupancy<u8, 6>(state);
-        if (row == 0 && col == 0)
-        {
-            double m = mx[row*width + col];
-            printf("mx: %f\n", m);
-        }
+        ocp += occupancy<u8, 6>(state);
         __syncthreads();
     }
     __syncthreads();
 
-    mx[row*width + col] = mx[row*width + col] / timesteps;
-    my[row*width + col] = my[row*width + col] / timesteps;
+    mx[row*width + col] = px / timesteps;
+    my[row*width + col] = py / timesteps;
 
-    ocpy[row*width+col] = ocpy[row*width+col] / timesteps;
+    ocpy[row*width+col] = ocp / timesteps;
     return;
 }
 
@@ -276,6 +258,39 @@ fhp_grid<word, channel_count, BLOCK_WIDTH, BLOCK_HEIGHT>::number_of_particles(wo
         count++;
     }
     return count;
+}
+
+void only_two_collision(u8* eq, u8* st_to_eq, u8* eq_size)
+{
+    int index = 0;
+
+    // triplet
+    eq[index] = 21; index++;
+    eq[index] = 42; index++;
+    st_to_eq[21] = 0; st_to_eq[42] = 0;
+    eq_size[21] = 2;  eq_size[42] = 2;
+    
+    // triplet
+    eq[index] = 9; index++;
+    eq[index] = 18; index++;
+    eq[index] = 36; index++;
+    st_to_eq[9] = 2;  eq_size[9] = 3;
+    st_to_eq[18] = 2; eq_size[18] = 3;
+    st_to_eq[36] = 2; eq_size[36] = 3;
+
+    
+    for(int state = 0; state < 64; state++)
+    {
+        if (state == 21 || state == 42)
+            continue;
+        else if (state == 9 || state == 18 || state == 36 )
+            continue;
+        // printf("state: %d, index: %d\n", state, index);
+        eq[index] = state;
+        st_to_eq[state] = index;
+        eq_size[state] = 1;
+        index++;
+    }
 }
 
 void
@@ -333,6 +348,8 @@ setup_constants(fhp1_grid *grid)
             index++;
         }
     }
+
+    only_two_collision(h_eq_classes, h_state_to_eq, h_eq_class_size);
 
     int BIT_MASK_3 = 0b111, BIT_MASK_6 = 0b111000;
 
@@ -417,7 +434,7 @@ initialize_grid(u8* device_grid, u8* device_obstacle, double* probability,
     for (int i=5; i>=0; i--) 
     {
         rand = curand_uniform(&localstate);
-        state |= (rand < probability[i]) ? 0 : 1;
+        state |= (rand < probability[i]) ? 1 : 0;
         state <<= 1;
     }
 

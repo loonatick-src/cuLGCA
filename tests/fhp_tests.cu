@@ -43,6 +43,18 @@ const char *test_fhp_1step()
         14, 2, 52, 1, 33, 61, 28, 7
     };
 
+    // const int GRID_SIZE = 8;
+    // std::cout << "\n\n";
+    // for(int i=0; i<GRID_SIZE; i++) 
+    // {
+    //     for(int j=0; j<GRID_SIZE; j++){
+    //         u8 t = buffer[i*GRID_SIZE+j];
+    //         std::bitset<8> x(t);
+    //         std::cout << (int)t <<"\t";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
     fhp1_grid fhp(width, height, channels, buffer, seed);
     u8* d_ptr = fhp.device_grid;
 
@@ -59,7 +71,6 @@ const char *test_fhp_1step()
         cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError( ));
 
-    // const int GRID_SIZE = 8;
     // std::cout << "\n\n";
     // for(int i=0; i<GRID_SIZE; i++) 
     // {
@@ -70,7 +81,6 @@ const char *test_fhp_1step()
     //     }
     //     std::cout << std::endl;
     // }
-
 
     // THis is output for state initilized with `curand_init(1234, id, 0, &state[id]);`
     u8 expected[] = {
@@ -207,6 +217,10 @@ const char *fhp_all3()
     buffer[5*width+6] |= 1<<6;
     buffer[5*width+7] |= 1<<6;
 
+    // double *occup = new double[width*height];
+    // double *mx = new double[width*height];
+    // double *my = new double[width*height];
+
     const int GRID_SIZE = width;
     std::cout << "\n\n";
     for(int i=0; i<GRID_SIZE; i++) 
@@ -324,7 +338,7 @@ const char *all_tests()
     mu_suite_start();
 
     // mu_run_test(test_fhp_1step);
-    mu_run_test(fhp_all1);
+    // mu_run_test(fhp_all1);
     // mu_run_test(fhp_generate_grid);
     // mu_run_test(fhp_all3);
 

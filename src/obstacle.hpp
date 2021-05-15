@@ -63,6 +63,10 @@ init_cyl_obst_kernel(word *buffer, size_t width, size_t height,
         const auto d_2 = labs(row - centre_y);
         const auto c_dist = lattice_vector_length_d(d_1, d_2, u1_x, u1_y, u2_x, u2_y);
         buffer[row*width + col] = (c_dist <= radius ? 1 : 0);
+
+        // if (row == 0 || row == height-1){
+        //     buffer[row*width + col] = 1;
+        // }
     }
 
     return;

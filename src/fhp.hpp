@@ -210,9 +210,12 @@ struct fhp_grid
         for(int i=0; i<height; i++)
         {
             int j;
-            for(j=0; j<width-1; j++)
-                stream << (int)buf[i*width + j] << ", " ;
-            stream << (int)buf[i*width + j];
+            for(j=0; j<width-1; j++){
+                std::bitset<8> t(buf[i*width + j]);
+                stream << t << ", " ;
+            }
+            std::bitset<8> t(buf[i*width + j]);
+            stream << t;
             stream << "\n";
         }
         stream << "\n";

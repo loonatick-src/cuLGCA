@@ -14,9 +14,9 @@ constexpr std::array<double, 2> base_velocity_vec { 1.0, 0.0 };
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4)
+    if (argc < 5)
     {
-        fprintf(stderr, "Usage: %s <width> <height> <obst-radius>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <width> <height> <obst-radius> <timesteps>\n", argv[0]);
         exit(1);
     }
 
@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
     size_t width { atol(argv[1]) }, height { atol(argv[2]) };
     double radius;
     sscanf(argv[3], "%lf", &radius);
+
+    int timesteps = atoi(argv[4]);
 
     printf("width: %ld, height: %ld, radius %lf\n", width, height, radius); 
 
@@ -40,6 +42,9 @@ int main(int argc, char *argv[])
 
     // buffer for storing obstacle information
     u8 *buffer = new u8 [width * height];
+    double *occup = new double[width*height];
+    double *mx = new double[width*height];
+    double *my = new double[width*height];
 
     // generating an obstacle
     initialize_cylindrical_obstacle<u8>(buffer, width, height, centre_x, centre_y, radius);
@@ -49,21 +54,38 @@ int main(int argc, char *argv[])
 
     const dim3 block_config(8, 8);
     const dim3 grid_config = make_tiles(block_config, width, height);
+    fprintf(stderr, "(%d, %d, %d), ", grid_config.x, grid_config.y, grid_config.z);
+    fprintf(stderr, "(%d, %d, %d)\n", block_config.x, block_config.y, block_config.z);
 
     // initializing grid
     fhp1_grid fhp(width, height, ch, seed, h_prob, buffer);
+
+    momentum<<<grid_config, block_config>>>(fhp.device_grid, fhp.device_channels, 
+        fhp.mx, fhp.my, fhp.ocpy, fhp.width);
+    cudaDeviceSynchronize();
+    gpuErrchk(cudaGetLastError( ));
+
+    std::ofstream ioutput("data/ioutput.csv"), ipx("data/ipx.csv"), ipy("data/ipy.csv"),
+        iocpy("data/ioccupancy.csv");
+
+    fhp.get_output(buffer, mx, my, occup);
+
+    fhp.create_csv(ioutput, buffer);
+    fhp.create_csv(ipx, mx);
+    fhp.create_csv(ipy, my);
+    fhp.create_csv(iocpy, occup);
+
     // time evolution
-    evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 1000,
-        fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
+    evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 
+        timesteps, fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError());
 
-    double *occup = new double[width*height];
-    double *mx = new double[width*height];
-    double *my = new double[width*height];
-
     std::ofstream output("data/output.csv"), px("data/px.csv"), py("data/py.csv"),
         ocpy("data/occupancy.csv");
+
+    std::ofstream metadata("data/meta.txt");
+    metadata << width << ", " << height << "\n";
 
     fhp.get_output(buffer, mx, my, occup);
 
