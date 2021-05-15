@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4)
     {
-        fprintf(stderr, "Usage: %s <width> <height> <obst-radius>", argv[0]);
+        fprintf(stderr, "Usage: %s <width> <height> <obst-radius>\n", argv[0]);
         exit(1);
     }
 
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     // channel-wise occupancy probabilities for initialization
     double h_prob[] = { 0.9, 0.9, 0.4, 0.3, 0.4, 0.9 };
 
-    const dim3 block_config(16, 4);
+    const dim3 block_config(8, 8);
     const dim3 grid_config = make_tiles(block_config, width, height);
 
     // initializing grid
@@ -55,11 +55,31 @@ int main(int argc, char *argv[])
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError());
 
+    momentum<<<grid_config, block_config>>>(fhp.device_grid, fhp.device_channels, 
+        fhp.mx, fhp.my, fhp.ocpy, fhp.width);
+    cudaDeviceSynchronize();
+    gpuErrchk(cudaGetLastError());
+
     // copying back to buffer
     cudaMemcpy(buffer, fhp.device_grid,  grid_sz * sizeof(u8), cudaMemcpyDeviceToHost);
     gpuErrchk(cudaGetLastError());
-    
+
+    u8 *occup = new u8[width*height];
+    double *mx = new double[width*height];
+    double *my = new double[width*height];
+
+    std::ofstream output("data/output.csv"), px("data/px.csv"), py("data/py.csv"),
+        ocpy("data/occupancy.csv");
+
+    fhp.get_output(buffer, mx, my, occup);
+
+    fhp.create_csv(output, buffer);
+    fhp.create_csv(px, mx);
+    fhp.create_csv(py, my);
+    fhp.create_csv(ocpy, occup);
+
     // TODO print output 
+    delete[] occup;
     delete[] buffer;
     return 0;
 }

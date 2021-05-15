@@ -15,7 +15,7 @@ TARGET=build/libfhp.a
 all: $(TARGET) tests # $(SO_TARGET)
 
 dev: CFLAGS = -g  -Isrc $(OPTFLAGS)
-dev: all
+dev: all 
 
 src/%.o: src/%.cu src/*.hpp
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -30,6 +30,7 @@ $(TARGET): build $(OBJECTS)
 build:
 	@mkdir -p build
 	@mkdir -p bin
+	@mkdir -p data
 
 .PHONY: tests
 tests: LDLIBS = $(TARGET)

@@ -3,6 +3,7 @@
 #include <cassert>
 #include <curand_kernel.h>
 #include <iostream>
+#include <fstream>
 #include <bitset>
 #include "dbg.h"
 #include "velocity.hpp"
@@ -182,13 +183,48 @@ struct fhp_grid
     number_of_particles(word n);
 
     void 
-    get_output(word* output)
+    get_output(word* output, double *p_x, double* p_y, word* o)
     {
+        assert(output != NULL);
+        assert(p_x != NULL);
+        assert(p_y != NULL);
+        assert(o != NULL);
         const auto grid_sz = width * height;
         const auto mem_sz = grid_sz * sizeof(word);
         cudaMemcpy(output, device_grid, mem_sz,
                 cudaMemcpyDeviceToHost);
+        cudaMemcpy(p_x, mx, grid_sz*sizeof(double),
+                cudaMemcpyDeviceToHost);
+        cudaMemcpy(p_y, my, grid_sz*sizeof(double),
+                cudaMemcpyDeviceToHost);
+        cudaMemcpy(o, ocpy, mem_sz,
+                cudaMemcpyDeviceToHost);
+        
         return;
+    }
+
+    void 
+    create_csv(std::ofstream &stream, word *buf)
+    {
+        for(int i=0; i<height; i++)
+        {
+            for(int j=0; j<width; j++)
+                stream << (int)buf[i*width + j] << ", " ;
+            stream << "\n";
+        }
+        stream << "\n";
+    }
+
+    void 
+    create_csv(std::ofstream &stream, double *buf)
+    {
+        for(int i=0; i<height; i++)
+        {
+            for(int j=0; j<width; j++)
+                stream << buf[i*width + j] << ", " ;
+            stream << "\n";
+        }
+        stream << "\n";
     }
 
 };
