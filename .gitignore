@@ -11,4 +11,3 @@ build/*
 *.cubin
 *.fatbin
 tests/*_tests
-data/*

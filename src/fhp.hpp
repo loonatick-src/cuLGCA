@@ -234,6 +234,19 @@ struct fhp_grid
         }
         stream << "\n";
     }
+    void 
+    create_csv(std::ofstream &stream, double *buf, const int& w, const int& h)
+    {
+        for(int i=0; i<h; i++)
+        {
+            int j;
+            for(j=0; j<w-1; j++)
+                stream << buf[i*w + j] << ", " ;
+            stream << buf[i*w + j];
+            stream << "\n";
+        }
+        stream << "\n";
+    }
 
 };
     
@@ -275,3 +288,9 @@ __global__
 void 
 initialize_grid(u8* device_grid, u8* device_obstacle, double* probability, 
     curandState_t *randstate, int width);
+
+__global__
+void
+evolve_non_local(u8* device_grid, curandState_t* randstate, int width, int height, int timesteps, 
+    double* device_channels, double* mx, double *my, double* ocpy, 
+    double* amx, double* amy, double* aoc);

@@ -11,6 +11,57 @@
 
 constexpr std::array<double, 2> base_velocity_vec { 1.0, 0.0 };
 
+void 
+aligned_rect(int width, int height, u8* buffer)
+{
+    const auto centre_x = width  / 2;
+    const auto centre_y = height / 2;
+
+    for(int i=0; i<height; i++)
+    {
+        for(int j=0; j<width; j++)
+            buffer[i*width+j] = 0;
+    }
+
+    for(int i= centre_y - 100; i<centre_y+100; i++)
+    {
+        for(int j=centre_x-5; j<centre_x+5; j++)
+            buffer[i*width+j] = 1;
+    }
+    return;
+}
+
+void 
+true_rect(int width, int height, u8* buffer)
+{
+    const auto centre_x = width  / 2;
+    const auto centre_y = height / 2;
+
+    int rh = 63, rw = 9;
+    
+    for(int i=0; i<height; i++)
+    {
+        for(int j=0; j<width; j++)
+            buffer[i*width+j] = 0;
+    }
+
+    int i = centre_y+rh/2, j = centre_x;
+    int base = centre_x;
+    for(int x=0; x<rh/2; x++){
+        for(j = -rw/2; j<= +rw/2; j++)
+            buffer[i*width + base + j] = 1;
+        i = i-1;
+        for(j = -rw/2; j< +rw/2; j++)
+            buffer[i*width + base + j] = 1;
+        i = i-1;
+        base = base-1;
+    }
+    for(j = -rw/2; j<= +rw/2; j++)
+    {
+        buffer[i*width + base + j] = 1;
+    }
+    return;
+}
 
 int main(int argc, char *argv[])
 {
@@ -38,7 +89,7 @@ int main(int argc, char *argv[])
     const auto base_v = velocity2(base_velocity_vec);
     const auto ch = generate_fhp1_velocities(base_v);
 
-    long seed = 1000;
+    long seed = 1024;
 
     // buffer for storing obstacle information
     u8 *buffer = new u8 [width * height];
@@ -47,10 +98,13 @@ int main(int argc, char *argv[])
     double *my = new double[width*height];
 
     // generating an obstacle
-    initialize_cylindrical_obstacle<u8>(buffer, width, height, centre_x, centre_y, radius);
+    // initialize_cylindrical_obstacle<u8>(buffer, width, height, centre_x, centre_y, radius);
+    true_rect(width, height, buffer);
+    // aligned_rect(width, height, buffer);
+
 
     // channel-wise occupancy probabilities for initialization
-    double h_prob[] = { 0.8, 0.7, 0.4, 0.1, 0.4, 0.7 };
+    double h_prob[] = { 0.7, 0.5, 0.2, 0.1, 0.2, 0.5 };
 
     const dim3 block_config(8, 8);
     const dim3 grid_config = make_tiles(block_config, width, height);
@@ -75,9 +129,15 @@ int main(int argc, char *argv[])
     fhp.create_csv(ipy, my);
     fhp.create_csv(iocpy, occup);
 
+    double *avx, *avy, *aoc;
+    cudaMalloc((void **) &avx, grid_config.x*grid_config.y*sizeof(double));
+    cudaMalloc((void **) &avy, grid_config.x*grid_config.y*sizeof(double));
+    cudaMalloc((void **) &aoc, grid_config.x*grid_config.y*sizeof(double));
+
     // time evolution
-    evolve<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, fhp.height, 
-        timesteps, fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy);
+    evolve_non_local<<<grid_config, block_config>>>(fhp.device_grid, fhp.state, fhp.width, 
+        fhp.height, timesteps, fhp.device_channels, fhp.mx, fhp.my, fhp.ocpy,
+        avx, avy, aoc);
     cudaDeviceSynchronize();
     gpuErrchk(cudaGetLastError());
 
@@ -94,7 +154,45 @@ int main(int argc, char *argv[])
     fhp.create_csv(py, my);
     fhp.create_csv(ocpy, occup);
 
+
+    std::ofstream apx("data/avx.csv"), apy("data/avy.csv"), aocp("data/aocpy.csv");
+
+    double* hpx = new double[grid_config.x*grid_config.y];
+    double* hpy = new double[grid_config.x*grid_config.y];
+    double* hoc = new double[grid_config.x*grid_config.y];
+
+    cudaMemcpy(hpx, avx, grid_config.x*grid_config.y*sizeof(double),
+        cudaMemcpyDeviceToHost);
+    cudaMemcpy(hpy, avy, grid_config.x*grid_config.y*sizeof(double),
+        cudaMemcpyDeviceToHost);
+    cudaMemcpy(hoc, aoc, grid_config.x*grid_config.y*sizeof(double),
+        cudaMemcpyDeviceToHost);
+
+    // for(int i=0; i< grid_config.x*grid_config.y; i++)
+    //     printf("%lf ", hpx[i]);
+    // printf("\n");
+    fhp.create_csv(apx, hpx, grid_config.x, grid_config.y);
+    fhp.create_csv(apy, hpy, grid_config.x, grid_config.y);
+    fhp.create_csv(aocp, hoc, grid_config.x, grid_config.y);
+    
     // TODO print output 
+    momentum<<<grid_config, block_config>>>(fhp.device_grid, fhp.device_channels, 
+        fhp.mx, fhp.my, fhp.ocpy, fhp.width);
+    cudaDeviceSynchronize();
+    gpuErrchk(cudaGetLastError( ));
+
+    std::ofstream fpx("data/fpx.csv"), fpy("data/fpy.csv"), focpy("data/foccupancy.csv");
+
+    fhp.get_output(buffer, mx, my, occup);
+
+    fhp.create_csv(fpx, mx);
+    fhp.create_csv(fpy, my);
+    fhp.create_csv(focpy, occup);
+
+    cudaFree(avx);
+    cudaFree(avy);
+    cudaFree(aoc);
+    delete[] hpx; delete[] hpy; delete[] hoc;
     delete[] occup;
     delete[] buffer;
     return 0;

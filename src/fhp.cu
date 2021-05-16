@@ -445,3 +445,141 @@ initialize_grid(u8* device_grid, u8* device_obstacle, double* probability,
     return;
 }
 
+__global__
+void
+evolve_non_local(u8* device_grid, curandState_t* randstate, int width, int height, int timesteps, 
+    double* device_channels, double* mx, double *my, double* ocpy, 
+    double* amx, double* amy, double* aoc)
+{
+    __shared__ u8 sdm[default_bh+2][default_bw+2];
+    __shared__ float spx;
+    __shared__ float spy;
+    __shared__ float soc;
+    
+    const auto local_row = threadIdx.y+1;
+    const auto local_col = threadIdx.x+1;
+    const auto row = blockIdx.y * blockDim.y + threadIdx.y;
+    const auto col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= height || col >= width)
+        return;
+    curandState_t localstate = randstate[row*width + col];
+    __syncthreads();
+
+    double px = 0, py = 0;
+    double ocp = 0;
+    __syncthreads();
+
+
+    for (size_t t = 0; t < timesteps; t++)
+    {
+
+        // 1. load into shared memory
+        sdm[local_row][local_col] = device_grid[row*width + col];
+        // As such all these bool values can be stored in the same
+        // register. Is nvcc smart enough to do this if the number
+        // of registers at hand are low?
+        const auto ubound_y {local_row == blockDim.y-1};
+        const auto ubound_x {local_col == blockDim.x-1};
+        const auto lbound_y {local_row == 1};
+        const auto lbound_x {local_col == 1};
+        size_t pad_row = row, pad_col = col;
+        size_t local_pad_row = local_row, local_pad_col = local_col;
+
+        // printf("row %d col %d: lr %d lbx %d\n", row, col, local_row, lbound_x);
+        // NSight is going to roast tf out of this kernel
+        if (lbound_y)
+        {
+            pad_row = (row == 0) ? height-1 : row-1;
+            local_pad_row = 0;
+            sdm[local_pad_row][local_col] = device_grid[pad_row * width + col];
+        } else if (ubound_y)
+        {
+            pad_row = (row+1) % height;
+            local_pad_row = blockDim.y+1;
+            sdm[blockDim.y+1][local_col] = device_grid[pad_row * width + col];
+        }
+        // __syncthreads();
+        if (lbound_x)
+        {
+            pad_col = (col == 0) ? width-1 : col-1;
+            local_pad_col = 0;
+            sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
+        } else if (ubound_x)
+        {
+            pad_col = (col+1) % width;
+            local_pad_col = blockDim.x+1;
+            sdm[local_row][local_pad_col] = device_grid[row * width + pad_col];
+        }
+        // __syncthreads();
+
+        if (pad_row != row && pad_col != col)
+        {
+            sdm[local_pad_row][local_pad_col] = device_grid[pad_row*width + pad_col]; 
+        }
+        __syncthreads();
+
+        // 2. Streaming
+        u8 state = stream<u8, 6, 8, 8>(local_row, local_col, sdm);
+        // if (row == 0 && col == 2){
+        //     printf("row %d, col %d: state: %d\n", row, col, state);
+        //     printf("%d %d %d\n", sdm[local_row][local_col-1], sdm[local_row+1][local_col], sdm[local_row+1][local_col+1]);
+        //     printf("%d %d %d\n", sdm[local_row][local_col+1], sdm[local_row-1][local_col], sdm[local_row-1][local_col-1]);
+        // }
+
+        // printf("[%d, %d]: state %d\n", row, col, state);
+        __syncthreads();
+        // 3. Collision
+        u8 size = d_eq_class_size[state];
+        u8 base_index = d_state_to_eq[state];
+
+        // This is from [0,...,size-1]
+        float rand = curand_uniform(&localstate);
+        rand *= size-0.00001;
+        u8 random_index = (u8)(rand) % size; // Require curand_init for each thread
+
+        state = d_eq_classes[base_index + random_index];
+
+        device_grid[row*width + col] = state;
+        // printf("row %d, col %d: collide: %d\n", row, col, state);
+
+        // Add to momentum and occupancy matrices
+        px += momentum_x<u8, 6>(state, device_channels);
+        py +=  momentum_y<u8, 6>(state, device_channels);
+        ocp += occupancy<u8, 6>(state);
+
+        atomicAdd(&spx, px);
+        atomicAdd(&spy, py);
+        atomicAdd(&soc, ocp);
+        __syncthreads();
+        if (local_row == 1 && local_col == 1)
+        {
+            spx /= 64;
+            spy /= 64;
+            soc/= 64;
+        }
+    }
+    __syncthreads();
+
+    mx[row*width + col] = px / timesteps;
+    my[row*width + col] = py / timesteps;
+
+    ocpy[row*width+col] = ocp / timesteps;
+
+    if (local_col == 1 && local_row == 1){
+        const auto br = blockIdx.y;
+        const auto bc = blockIdx.x;
+        const auto addr = br*gridDim.x+bc;
+        // if (br==1)
+        // printf("[%d %d]\tbr: %d, bc: %d bdx: %d bdy %d index: %d px: %f\n", 
+        //     row, col, br, bc, gridDim.x, gridDim.x, addr, spx / timesteps);
+
+        amx[addr] = spx / timesteps;
+        amy[addr] = spy / timesteps;
+        aoc[addr] = soc / timesteps;
+    }
+    // if (row == height-1 && col == width-1){
+    //     printf("[%d %d] br: %d, bc: %d px: %f\n", row, col, blockIdx.y, blockIdx.x, spx / timesteps);
+    // }
+return;
+}
+
